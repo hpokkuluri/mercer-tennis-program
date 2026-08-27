@@ -1,0 +1,65 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
+
+:root {
+  --bg: oklch(97% 0.006 95);
+  --card: oklch(100% 0 0);
+  --border: oklch(91% 0.008 90);
+  --border-soft: oklch(94% 0.006 90);
+  --text: oklch(20% 0.01 260);
+  --text-muted: oklch(50% 0.01 260);
+  --text-faint: oklch(62% 0.01 260);
+
+  --accent: oklch(75% 0.19 125);
+  --accent-text: oklch(22% 0.05 125);
+  --accent-soft-bg: oklch(95% 0.03 140);
+
+  --blue: oklch(45% 0.1 220);
+
+  --green-bg: oklch(93% 0.09 140);
+  --green-text: oklch(35% 0.11 140);
+  --green-solid: oklch(45% 0.14 140);
+
+  --amber-bg: oklch(93% 0.09 70);
+  --amber-text: oklch(40% 0.1 60);
+  --amber-solid: oklch(60% 0.13 70);
+
+  --red-bg: oklch(94% 0.06 25);
+  --red-text: oklch(50% 0.15 25);
+  --red-solid: oklch(58% 0.16 25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Manrope", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: var(--green-solid);
+}
+a:hover {
+  color: var(--green-text);
+}
+
+.display {
+  font-family: "Space Grotesk", sans-serif;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
