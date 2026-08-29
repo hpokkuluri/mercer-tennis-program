@@ -17,7 +17,7 @@ export function Header({ title, onBack, right }) {
       {onBack !== false ? (
         <button
           onClick={() => (onBack ? onBack() : navigate(-1))}
-          style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
         >
           <ChevronLeftIcon />
         </button>
@@ -38,8 +38,8 @@ export function Field({ label, ...props }) {
         {...props}
         style={{
           background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
+          border: "var(--border-width, 1px) solid var(--border)",
+          borderRadius: "var(--radius-md)",
           padding: "13px 14px",
           fontSize: 15,
           color: "var(--text)",
@@ -59,13 +59,13 @@ export function PrimaryButton({ children, disabled, style = {}, ...props }) {
       style={{
         width: "100%",
         border: "none",
-        borderRadius: 14,
+        borderRadius: "var(--radius-md)",
         padding: "15px 0",
         background: disabled ? "oklch(88% 0.02 125)" : "var(--accent)",
         color: "var(--accent-text)",
         fontSize: 15,
         fontWeight: 700,
-        boxShadow: disabled ? "none" : "0 4px 14px color-mix(in oklch, var(--accent) 35%, transparent)",
+        boxShadow: disabled ? "none" : "var(--shadow-btn, 0 4px 14px color-mix(in oklch, var(--accent) 35%, transparent))",
         ...style,
       }}
     >
@@ -87,7 +87,7 @@ export function SecondaryButton({ children, tone = "neutral", style = {}, ...pro
       style={{
         width: "100%",
         background: "var(--card)",
-        borderRadius: 14,
+        borderRadius: "var(--radius-md)",
         padding: "14px 0",
         fontSize: 14,
         fontWeight: 700,
@@ -105,10 +105,10 @@ export function Card({ children, style = {} }) {
     <div
       style={{
         background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 16,
+        border: "var(--border-width, 1px) solid var(--border)",
+        borderRadius: "var(--radius-lg)",
         padding: 16,
-        boxShadow: "0 1px 2px oklch(20% 0.02 260 / 0.05)",
+        boxShadow: "var(--shadow-card, 0 1px 2px oklch(20% 0.02 260 / 0.05))",
         ...style,
       }}
     >
@@ -139,5 +139,5 @@ export function Badge({ tone = "green", children }) {
 
 export function ErrorText({ children }) {
   if (!children) return null;
-  return <div style={{ fontSize: 13, color: "var(--red-text)", background: "var(--red-bg)", borderRadius: 10, padding: "10px 12px" }}>{children}</div>;
+  return <div style={{ fontSize: 13, color: "var(--red-text)", background: "var(--red-bg)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>{children}</div>;
 }

@@ -1,10 +1,11 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Bungee&family=Poppins:wght@400;500;600;700&family=Luckiest+Guy&family=Baloo+2:wght@500;600;700;800&family=Quicksand:wght@500;600;700&family=Karla:wght@400;500;600;700&display=swap");
 
 :root {
   --bg: oklch(97% 0.006 95);
   --card: oklch(100% 0 0);
   --border: oklch(91% 0.008 90);
   --border-soft: oklch(94% 0.006 90);
+  --border-width: 1px;
   --text: oklch(20% 0.01 260);
   --text-muted: oklch(50% 0.01 260);
   --text-faint: oklch(62% 0.01 260);
@@ -26,6 +27,15 @@
   --red-bg: oklch(94% 0.06 25);
   --red-text: oklch(50% 0.15 25);
   --red-solid: oklch(58% 0.16 25);
+
+  /* Shape + type tokens — themes override these to change the app's whole
+     look, not just its colors. Components fall back to these defaults via
+     var(--token, fallback) so a theme only needs to set what it changes. */
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 16px;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "Manrope", sans-serif;
 }
 
 * {
@@ -40,8 +50,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-body);
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
 a {
@@ -52,7 +63,7 @@ a:hover {
 }
 
 .display {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-display);
 }
 
 button {

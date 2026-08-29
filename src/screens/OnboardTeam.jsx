@@ -36,11 +36,11 @@ export default function OnboardTeam() {
         <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4 }}>Join your team, or start a new one.</div>
       </div>
 
-      <div style={{ display: "flex", background: "oklch(93% 0.008 90)", borderRadius: 12, padding: 4, gap: 4, marginBottom: 20 }}>
-        <button type="button" onClick={() => setMode("join")} style={{ flex: 1, border: "none", padding: "10px 0", borderRadius: 9, fontWeight: 700, fontSize: 14, background: mode === "join" ? "var(--accent)" : "transparent", color: mode === "join" ? "var(--accent-text)" : "var(--text-muted)" }}>
+      <div style={{ display: "flex", background: "oklch(93% 0.008 90)", borderRadius: "var(--radius-md)", padding: 4, gap: 4, marginBottom: 20 }}>
+        <button type="button" onClick={() => setMode("join")} style={{ flex: 1, border: "none", padding: "10px 0", borderRadius: "var(--radius-sm)", fontWeight: 700, fontSize: 14, background: mode === "join" ? "var(--accent)" : "transparent", color: mode === "join" ? "var(--accent-text)" : "var(--text-muted)" }}>
           Join a Team
         </button>
-        <button type="button" onClick={() => setMode("create")} style={{ flex: 1, border: "none", padding: "10px 0", borderRadius: 9, fontWeight: 700, fontSize: 14, background: mode === "create" ? "var(--accent)" : "transparent", color: mode === "create" ? "var(--accent-text)" : "var(--text-muted)" }}>
+        <button type="button" onClick={() => setMode("create")} style={{ flex: 1, border: "none", padding: "10px 0", borderRadius: "var(--radius-sm)", fontWeight: 700, fontSize: 14, background: mode === "create" ? "var(--accent)" : "transparent", color: mode === "create" ? "var(--accent-text)" : "var(--text-muted)" }}>
           Create a Team
         </button>
       </div>

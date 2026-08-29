@@ -17,7 +17,7 @@ export default function BottomNav() {
         flexShrink: 0,
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         background: "var(--card)",
-        borderTop: "1px solid var(--border)",
+        borderTop: "var(--border-width, 1px) solid var(--border)",
         display: "flex",
         position: "sticky",
         bottom: 0,

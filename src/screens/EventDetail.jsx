@@ -78,7 +78,7 @@ export default function EventDetail() {
         title="Event Details"
         right={
           (isAdmin || event.organizerId === profile.uid) && (
-            <div style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <DotsIcon style={{ color: "var(--text)" }} />
             </div>
           )
@@ -105,7 +105,7 @@ export default function EventDetail() {
             </div>
           </div>
           {event.note && (
-            <div style={{ background: "oklch(95% 0.02 90)", borderRadius: 12, padding: "12px 14px", fontSize: 13, fontStyle: "italic", color: "oklch(38% 0.01 260)" }}>
+            <div style={{ background: "oklch(95% 0.02 90)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 13, fontStyle: "italic", color: "oklch(38% 0.01 260)" }}>
               &ldquo;{event.note}&rdquo;
             </div>
           )}
@@ -146,7 +146,7 @@ export default function EventDetail() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {comments.length === 0 && <div style={{ fontSize: 13, color: "var(--text-faint)" }}>No comments yet.</div>}
             {comments.map((c) => (
-              <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px" }}>
+              <div key={c.id} style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px" }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700 }}>{c.authorName}</div>
                 <div style={{ fontSize: 13.5, color: "var(--text)", marginTop: 2 }}>{c.text}</div>
               </div>
@@ -157,9 +157,9 @@ export default function EventDetail() {
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Add a comment…"
-              style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px", fontSize: 13.5, outline: "none" }}
+              style={{ flex: 1, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, outline: "none" }}
             />
-            <button type="submit" className="display" style={{ border: "none", background: "var(--accent)", color: "var(--accent-text)", borderRadius: 12, padding: "0 16px", fontWeight: 700, fontSize: 13 }}>
+            <button type="submit" className="display" style={{ border: "none", background: "var(--accent)", color: "var(--accent-text)", borderRadius: "var(--radius-md)", padding: "0 16px", fontWeight: 700, fontSize: 13 }}>
               Send
             </button>
           </form>
@@ -182,7 +182,7 @@ export default function EventDetail() {
         {canRespond && !reassignOpen && (
           <div style={{ display: "flex", gap: 12 }}>
             <SecondaryButton data-testid="decline-btn" tone="neutral" onClick={() => respond("declined")} style={{ flex: 1 }}>Decline</SecondaryButton>
-            <button data-testid="reassign-btn" onClick={() => setReassignOpen(true)} style={{ flex: 0.9, background: "var(--card)", border: "1.5px solid var(--border)", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--text-muted)", fontWeight: 700, fontSize: 13 }} className="display">
+            <button data-testid="reassign-btn" onClick={() => setReassignOpen(true)} style={{ flex: 0.9, background: "var(--card)", border: "var(--border-width, 1.5px) solid var(--border)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--text-muted)", fontWeight: 700, fontSize: 13 }} className="display">
               <SwapIcon /> Reassign
             </button>
             <PrimaryButton data-testid="accept-btn" onClick={() => respond("accepted")} style={{ flex: 1.3 }}>Accept</PrimaryButton>
@@ -202,7 +202,7 @@ export default function EventDetail() {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {availableToReassign.length === 0 && <div style={{ fontSize: 13, color: "var(--text-faint)" }}>Everyone on the team is already invited.</div>}
               {availableToReassign.map((m) => (
-                <button key={m.uid} onClick={() => reassignTo(m)} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                <button key={m.uid} onClick={() => reassignTo(m)} style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
                   <Avatar initials={m.initials} color={m.color} size={26} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
                 </button>
@@ -273,7 +273,7 @@ function RosterGroup({ label, tone, people, icon }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: toneColor, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label} · {people.length}</div>
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
         {people.map((p, i) => (
           <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < people.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
             <Avatar initials={p.initials} color={p.color} size={34} />

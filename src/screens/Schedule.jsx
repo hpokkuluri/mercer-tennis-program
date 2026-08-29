@@ -30,7 +30,7 @@ export default function Schedule({ season }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={() => navigate("/")}
-            style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
           >
             <ChevronLeftIcon />
           </button>

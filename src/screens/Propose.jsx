@@ -93,14 +93,14 @@ export default function Propose() {
       <Header title={isWinter ? "Assign a Game" : "Propose a Game"} />
 
       <form onSubmit={submit} style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px 20px", display: "flex", flexDirection: "column", gap: 22 }}>
-        <div style={{ display: "flex", background: "oklch(93% 0.008 90)", borderRadius: 12, padding: 4, gap: 4 }}>
+        <div style={{ display: "flex", background: "oklch(93% 0.008 90)", borderRadius: "var(--radius-md)", padding: 4, gap: 4 }}>
           {["practice", "match"].map((t) => (
             <button
               type="button"
               key={t}
               onClick={() => setType(t)}
               className="display"
-              style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "none", fontSize: 14, fontWeight: 700, textTransform: "capitalize", background: type === t ? "var(--accent)" : "transparent", color: type === t ? "var(--accent-text)" : "var(--text-muted)" }}
+              style={{ flex: 1, padding: "10px 0", borderRadius: "var(--radius-sm)", border: "none", fontSize: 14, fontWeight: 700, textTransform: "capitalize", background: type === t ? "var(--accent)" : "transparent", color: type === t ? "var(--accent-text)" : "var(--text-muted)" }}
             >
               {t}
             </button>
@@ -156,7 +156,7 @@ export default function Propose() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <SectionLabel>Players per team</SectionLabel>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "10px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 16px" }}>
               <button type="button" onClick={() => setTeamSize((n) => Math.max(2, n - 1))} style={stepperBtnStyle}>&minus;</button>
               <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 700 }} className="display">{teamSize}</div>
               <button type="button" onClick={() => setTeamSize((n) => Math.min(8, n + 1))} style={stepperBtnStyle}>+</button>
@@ -174,7 +174,7 @@ export default function Propose() {
             onChange={(e) => setNote(e.target.value)}
             placeholder="Bring extra balls…"
             rows={3}
-            style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "14px 16px", fontSize: 14, resize: "none", outline: "none" }}
+            style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "14px 16px", fontSize: 14, resize: "none", outline: "none" }}
           />
         </div>
 
@@ -189,12 +189,12 @@ export default function Propose() {
 }
 
 const inputRowStyle = { border: "none", outline: "none", fontSize: 15, fontWeight: 700, color: "var(--text)", background: "transparent", width: "100%", fontFamily: "inherit" };
-const stepperBtnStyle = { width: 32, height: 32, borderRadius: 999, border: "1px solid var(--border)", background: "oklch(95% 0.006 90)", fontSize: 18, fontWeight: 700, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const stepperBtnStyle = { width: 32, height: 32, borderRadius: 999, border: "var(--border-width, 1px) solid var(--border)", background: "oklch(95% 0.006 90)", fontSize: 18, fontWeight: 700, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
 
 function Row({ icon, label, children }) {
   return (
-    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14 }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent-soft-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "oklch(40% 0.12 140)" }}>{icon}</div>
+    <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 16px", display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ width: 36, height: 36, borderRadius: "var(--radius-sm)", background: "var(--accent-soft-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "oklch(40% 0.12 140)" }}>{icon}</div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{label}</div>
         {children}

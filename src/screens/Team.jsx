@@ -73,7 +73,7 @@ export default function Team() {
         </div>
         <button
           onClick={() => navigate("/settings")}
-          style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+          style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
         >
           <GearIcon style={{ color: "var(--text)" }} />
         </button>
@@ -89,9 +89,9 @@ export default function Team() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="teammate@example.com"
-                style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px", fontSize: 13.5, outline: "none", background: "var(--card)" }}
+                style={{ flex: 1, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, outline: "none", background: "var(--card)" }}
               />
-              <button type="submit" disabled={inviteBusy} className="display" style={{ border: "none", background: "var(--accent)", color: "var(--accent-text)", borderRadius: 12, padding: "0 16px", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+              <button type="submit" disabled={inviteBusy} className="display" style={{ border: "none", background: "var(--accent)", color: "var(--accent-text)", borderRadius: "var(--radius-md)", padding: "0 16px", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                 <MailIcon /> {inviteBusy ? "…" : "Invite"}
               </button>
             </form>
@@ -105,7 +105,7 @@ export default function Team() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <SectionLabel>Roster · {members.length}</SectionLabel>
           {removeError && <div style={{ fontSize: 12.5, color: "var(--red-text)" }}>{removeError}</div>}
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
             {members.map((m, i) => (
               <div key={m.uid} data-testid="member-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < members.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
                 <Avatar initials={m.initials} color={m.color} size={34} />
@@ -115,16 +115,16 @@ export default function Team() {
                 </div>
                 {m.uid !== profile.uid && (
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => navigate(`/messages/${m.uid}`)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: 8, padding: "6px 10px" }}>
+                    <button onClick={() => navigate(`/messages/${m.uid}`)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
                       Message
                     </button>
                     {isAdmin && (
-                      <button onClick={() => setAdmin(m.uid, !m.isAdmin)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: 8, padding: "6px 10px" }}>
+                      <button onClick={() => setAdmin(m.uid, !m.isAdmin)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
                         {m.isAdmin ? "Demote" : "Make admin"}
                       </button>
                     )}
                     {isAdmin && (
-                      <button data-testid="remove-btn" onClick={() => remove(m.uid)} style={{ fontSize: 12, fontWeight: 700, color: "var(--red-text)", background: "var(--red-bg)", border: "none", borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center" }}>
+                      <button data-testid="remove-btn" onClick={() => remove(m.uid)} style={{ fontSize: 12, fontWeight: 700, color: "var(--red-text)", background: "var(--red-bg)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 8px", display: "flex", alignItems: "center" }}>
                         <TrashIcon />
                       </button>
                     )}
@@ -142,9 +142,9 @@ export default function Team() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Post an update to the team…"
-              style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px", fontSize: 13.5, outline: "none", background: "var(--card)" }}
+              style={{ flex: 1, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, outline: "none", background: "var(--card)" }}
             />
-            <button type="submit" className="display" style={{ border: "none", background: "var(--accent)", color: "var(--accent-text)", borderRadius: 12, padding: "0 16px", fontWeight: 700, fontSize: 13 }}>
+            <button type="submit" className="display" style={{ border: "none", background: "var(--accent)", color: "var(--accent-text)", borderRadius: "var(--radius-md)", padding: "0 16px", fontWeight: 700, fontSize: 13 }}>
               Post
             </button>
           </form>

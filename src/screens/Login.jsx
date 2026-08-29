@@ -43,7 +43,7 @@ export default function Login() {
         <div className="display" style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>Mercer Tennis Program</div>
         <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Scheduling for your tennis team</div>
         {!usingFirebase && (
-          <div style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.5, color: "var(--amber-text)", background: "var(--amber-bg)", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.5, color: "var(--amber-text)", background: "var(--amber-bg)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
             Running in local demo mode — accounts only live in this browser and aren't secure. See SETUP.md to connect a free Firebase project for real accounts.
           </div>
         )}
@@ -59,7 +59,7 @@ export default function Login() {
         )}
 
         <ErrorText>{error}</ErrorText>
-        {notice && <div style={{ fontSize: 13, color: "var(--green-text)", background: "var(--green-bg)", borderRadius: 10, padding: "10px 12px" }}>{notice}</div>}
+        {notice && <div style={{ fontSize: 13, color: "var(--green-text)", background: "var(--green-bg)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>{notice}</div>}
 
         {mode === "signin" && (
           <button

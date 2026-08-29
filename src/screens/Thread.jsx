@@ -53,11 +53,11 @@ export default function Thread() {
                 style={{
                   maxWidth: "78%",
                   padding: "10px 14px",
-                  borderRadius: 16,
+                  borderRadius: "var(--radius-lg)",
                   borderBottomRightRadius: mine ? 4 : 16,
                   borderBottomLeftRadius: mine ? 16 : 4,
                   background: mine ? "var(--accent)" : "white",
-                  border: mine ? "none" : "1px solid var(--border)",
+                  border: mine ? "none" : "var(--border-width, 1px) solid var(--border)",
                   color: mine ? "var(--accent-text)" : "var(--text)",
                   fontSize: 14,
                 }}
@@ -75,7 +75,7 @@ export default function Thread() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Message…"
-          style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 999, padding: "12px 16px", fontSize: 14, outline: "none", background: "var(--card)" }}
+          style={{ flex: 1, border: "var(--border-width, 1px) solid var(--border)", borderRadius: 999, padding: "12px 16px", fontSize: 14, outline: "none", background: "var(--card)" }}
         />
         <button type="submit" style={{ width: 44, height: 44, borderRadius: 999, border: "none", background: "var(--accent)", color: "var(--accent-text)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <SendIcon />

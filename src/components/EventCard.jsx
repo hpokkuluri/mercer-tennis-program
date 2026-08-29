@@ -34,8 +34,8 @@ export default function EventCard({ event }) {
       onClick={() => navigate(`/event/${event.id}`)}
       style={{
         background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 16,
+        border: "var(--border-width, 1px) solid var(--border)",
+        borderRadius: "var(--radius-lg)",
         padding: 16,
         display: "flex",
         flexDirection: "column",

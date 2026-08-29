@@ -4,7 +4,7 @@ import Avatar from "../components/Avatar";
 import { Header, Card, Field, SectionLabel, PrimaryButton, SecondaryButton, ErrorText } from "../components/UI";
 import { COLORS } from "../lib/identity";
 import { THEMES, getStoredThemeId, applyTheme } from "../lib/themes";
-import { checkForUpdate } from "../lib/pwaUpdate";
+import { checkForUpdate, hardRefresh } from "../lib/pwaUpdate";
 import { CheckIcon } from "../components/Icons";
 
 export default function Settings() {
@@ -26,6 +26,8 @@ export default function Settings() {
 
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateNotice, setUpdateNotice] = useState("");
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
 
   async function saveName(e) {
     e.preventDefault();
@@ -67,6 +69,15 @@ export default function Settings() {
     } finally {
       setUpdateBusy(false);
     }
+  }
+
+  async function doHardRefresh() {
+    if (!resetConfirm) {
+      setResetConfirm(true);
+      return;
+    }
+    setResetBusy(true);
+    await hardRefresh();
   }
 
   async function savePassword(e) {
@@ -133,7 +144,9 @@ export default function Settings() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <SectionLabel>App theme</SectionLabel>
-          <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: -4 }}>Changes the whole app's colors — background, cards, and accent.</div>
+          <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: -4 }}>
+            Changes the whole look — fonts, shapes, shadows, and background, not just the accent color.
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {THEMES.map((t) => {
               const on = t.id === themeId;
@@ -147,14 +160,32 @@ export default function Settings() {
                     alignItems: "center",
                     gap: 12,
                     background: "var(--card)",
-                    border: on ? "1.5px solid var(--text)" : "1px solid var(--border)",
-                    borderRadius: 12,
+                    border: on ? "2px solid var(--text)" : "var(--border-width, 1px) solid var(--border)",
+                    borderRadius: "var(--radius-md)",
                     padding: "10px 14px",
+                    textAlign: "left",
                   }}
                 >
-                  <div style={{ width: 22, height: 22, borderRadius: 999, background: t.swatch, flexShrink: 0 }} />
-                  <div style={{ fontSize: 13.5, fontWeight: 600, flex: 1, textAlign: "left" }}>{t.name}</div>
-                  {on && <CheckIcon width={16} height={16} style={{ color: "var(--text)" }} />}
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: t.tokens["--radius-sm"] || "9px",
+                      background: t.tokens["--bg"],
+                      border: `${t.tokens["--border-width"] || "1px"} solid ${t.tokens["--border"]}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span style={{ fontFamily: t.tokens["--font-display"], fontSize: 15, fontWeight: 700, color: t.swatch }}>Aa</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t.name}</div>
+                    {t.blurb && <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 1 }}>{t.blurb}</div>}
+                  </div>
+                  {on && <CheckIcon width={16} height={16} style={{ color: "var(--text)", flexShrink: 0 }} />}
                 </button>
               );
             })}
@@ -182,6 +213,15 @@ export default function Settings() {
           <SectionLabel>App version</SectionLabel>
           <SecondaryButton onClick={checkNow} disabled={updateBusy}>{updateBusy ? "Checking…" : "Check for updates"}</SecondaryButton>
           {updateNotice && <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{updateNotice}</div>}
+
+          <SecondaryButton tone={resetConfirm ? "red" : "neutral"} onClick={doHardRefresh} disabled={resetBusy}>
+            {resetBusy ? "Refreshing…" : resetConfirm ? "Tap again to confirm — force refresh" : "Force refresh app"}
+          </SecondaryButton>
+          <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: -4 }}>
+            {resetConfirm
+              ? "This clears the app's cache and reloads it. It won't sign you out."
+              : "Still looks out of date after Check for updates? This clears the app's cache and service worker, then reloads — for a stuck iPhone home-screen icon, this usually beats deleting and re-adding it."}
+          </div>
         </div>
 
         <button onClick={signOut} style={{ alignSelf: "center", background: "none", border: "none", color: "var(--text-faint)", fontSize: 13, fontWeight: 600, padding: 12, marginTop: 8 }}>

@@ -28,7 +28,7 @@ export default function Messages() {
         {convos.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <SectionLabel>Recent</SectionLabel>
-            <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
               {convos.map((c, i) => {
                 const other = memberById[convoOtherUid(c)];
                 if (!other) return null;
@@ -58,7 +58,7 @@ export default function Messages() {
               <button
                 key={m.uid}
                 onClick={() => navigate(`/messages/${m.uid}`)}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--card)" }}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--card)" }}
               >
                 <Avatar initials={m.initials} color={m.color} size={34} />
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</div>
