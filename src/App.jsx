@@ -4,6 +4,7 @@ import Shell from "./components/Shell";
 import Login from "./screens/Login";
 import OnboardTeam from "./screens/OnboardTeam";
 import Hub from "./screens/Hub";
+import Notifications from "./screens/Notifications";
 import Schedule from "./screens/Schedule";
 import Propose from "./screens/Propose";
 import EventDetail from "./screens/EventDetail";
@@ -34,6 +35,7 @@ function Gate() {
   return (
     <Routes>
       <Route path="/" element={<Hub />} />
+      <Route path="/notifications" element={<Notifications />} />
       <Route path="/summer" element={<Schedule season="summer" />} />
       <Route path="/winter" element={<Schedule season="winter" />} />
       <Route path="/propose/:season" element={<Propose />} />

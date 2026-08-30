@@ -25,12 +25,15 @@ export default function Hub() {
           <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-muted)" }}>Pick a schedule</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ position: "relative", width: 40, height: 40, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button
+            onClick={() => navigate("/notifications")}
+            style={{ position: "relative", width: 40, height: 40, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
             <BellIcon style={{ color: "oklch(35% 0.01 260)" }} />
             {badgeCount > 0 && (
               <div style={{ position: "absolute", top: 7, right: 8, width: 8, height: 8, borderRadius: 999, background: "var(--red-solid)", border: "1.5px solid white" }} />
             )}
-          </div>
+          </button>
           <Avatar initials={profile.initials} color={profile.color} size={40} />
         </div>
       </div>
