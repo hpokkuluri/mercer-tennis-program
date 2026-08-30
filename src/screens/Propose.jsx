@@ -56,7 +56,7 @@ export default function Propose() {
         selected.forEach((uid) => {
           const m = members.find((mm) => mm.uid === uid);
           participants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: "pending" };
-          if (m?.email) emailRecipients.push({ email: m.email, name: m.name });
+          if (m?.email && uid !== profile.uid) emailRecipients.push({ email: m.email, name: m.name });
         });
         id = await createEvent({ ...base, participants });
       } else {
@@ -132,10 +132,9 @@ export default function Propose() {
               <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green-solid)" }}>{selected.length} selected</span>
             </div>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-              {members
-                .filter((m) => m.uid !== profile.uid)
-                .map((m) => {
+              {members.map((m) => {
                   const on = selected.includes(m.uid);
+                  const isMe = m.uid === profile.uid;
                   return (
                     <button type="button" key={m.uid} onClick={() => toggle(m.uid)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                       <div style={{ position: "relative" }}>
@@ -146,12 +145,12 @@ export default function Propose() {
                           </div>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{m.name.split(" ")[0]}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{isMe ? "You" : m.name.split(" ")[0]}</div>
                     </button>
                   );
                 })}
             </div>
-            {members.length <= 1 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>No other teammates yet — invite them from the Team tab.</div>}
+            {members.length <= 1 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>You're the only member so far — invite teammates from the Team tab to assign them too.</div>}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

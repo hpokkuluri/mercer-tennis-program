@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { initials as initialsOf, colorFor } from "../lib/identity";
 import * as db from "../lib/db";
-import { sendJoinedEmail, sendRemovedEmail } from "../lib/email";
+import { sendJoinedEmail, sendRemovedEmail, sendAddedToEventEmail } from "../lib/email";
 
 const Ctx = createContext(null);
 
@@ -142,6 +142,30 @@ export function AppProvider({ children }) {
     reassignInvite: (eventId, toMember) =>
       db.reassignInvite(team.id, eventId, profile.uid, toMember.uid, toMember.name, toMember.initials, toMember.color),
     cancelEvent: (eventId) => db.cancelEvent(team.id, eventId),
+    addParticipants: async (eventId, uids) => {
+      const event = events.find((e) => e.id === eventId);
+      const newParticipants = {};
+      const emailRecipients = [];
+      uids.forEach((uid) => {
+        const m = team.members?.[uid];
+        if (!m) return;
+        newParticipants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: "pending" };
+        if (m.email) emailRecipients.push({ email: m.email, name: m.name });
+      });
+      await db.addParticipants(team.id, eventId, newParticipants);
+      if (event && emailRecipients.length > 0) {
+        sendAddedToEventEmail({
+          recipients: emailRecipients,
+          teamName: team.name,
+          title: event.title,
+          date: event.date,
+          startTime: event.startTime,
+          location: event.location,
+          organizerName: profile.name,
+          appUrl: window.location.origin,
+        }).catch(() => {});
+      }
+    },
     joinEvent: (eventId) =>
       db.joinEvent(team.id, eventId, { uid: profile.uid, name: profile.name, initials: profile.initials || initialsOf(profile.name), color: profile.color || colorFor(profile.uid) }),
     withdrawFromEvent: (eventId) => db.withdrawFromEvent(team.id, eventId, profile.uid),

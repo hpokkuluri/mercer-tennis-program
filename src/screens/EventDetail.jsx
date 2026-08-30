@@ -17,7 +17,7 @@ export default function EventDetail() {
   const navigate = useNavigate();
   const {
     events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment,
-    joinEvent, withdrawFromEvent, setWinterResult, addSummerResult, deleteSummerResult,
+    joinEvent, withdrawFromEvent, setWinterResult, addSummerResult, deleteSummerResult, addParticipants,
   } = useApp();
   const event = events.find((e) => e.id === id);
   const [comments, setComments] = useState([]);
@@ -141,6 +141,9 @@ export default function EventDetail() {
             <RosterGroup label="Accepted" tone="green" people={accepted} icon={<CheckIcon width={16} height={16} style={{ color: "var(--green-solid)" }} />} />
             <RosterGroup label="Pending" tone="amber" people={pending} icon={<span style={{ color: "var(--amber-solid)" }}><DotsIcon width={14} height={14} /></span>} />
             <RosterGroup label="Declined" tone="red" people={declined} icon={<XIcon width={15} height={15} style={{ color: "var(--red-solid)" }} />} />
+            {(isAdmin || event.organizerId === profile.uid) && event.status !== "cancelled" && availableToReassign.length > 0 && (
+              <AddPlayers candidates={availableToReassign} onAdd={(uids) => addParticipants(event.id, uids)} />
+            )}
           </>
         )}
 
@@ -285,6 +288,63 @@ function GroupCard({ group, teamSize, participants }) {
           ))}
       </div>
     </Card>
+  );
+}
+
+function AddPlayers({ candidates, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  function toggle(uid) {
+    setSelected((s) => (s.includes(uid) ? s.filter((x) => x !== uid) : [...s, uid]));
+  }
+
+  async function submit() {
+    setBusy(true);
+    try {
+      await onAdd(selected);
+      setSelected([]);
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <SecondaryButton onClick={() => setOpen(true)}>Add Players</SecondaryButton>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <SectionLabel>Add Players</SectionLabel>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {candidates.map((m) => {
+          const on = selected.includes(m.uid);
+          return (
+            <button type="button" key={m.uid} onClick={() => toggle(m.uid)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ position: "relative" }}>
+                <Avatar initials={m.initials} color={m.color} size={48} ring={on ? "var(--accent)" : undefined} />
+                {on && (
+                  <div style={{ position: "absolute", bottom: -2, right: -2, width: 17, height: 17, borderRadius: 999, background: "var(--accent)", border: "2px solid var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <CheckIcon width={8} height={8} style={{ color: "var(--accent-text)" }} />
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{m.name.split(" ")[0]}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <SecondaryButton onClick={() => { setOpen(false); setSelected([]); }} style={{ flex: 1 }}>Cancel</SecondaryButton>
+        <PrimaryButton onClick={submit} disabled={busy || selected.length === 0} style={{ flex: 1 }}>
+          {busy ? "Adding…" : `Add ${selected.length || ""} Player${selected.length === 1 ? "" : "s"}`}
+        </PrimaryButton>
+      </div>
+    </div>
   );
 }
 

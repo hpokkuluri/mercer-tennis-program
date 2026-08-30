@@ -55,3 +55,12 @@ export async function sendEventEmails({ recipients, teamName, title, date, start
     text: `${organizerName} posted a new ${title} for ${teamName} on ${date} at ${startTime}, ${location}. Open ${appUrl} to join.\n\n— Mercer Tennis Program`,
   });
 }
+
+export async function sendAddedToEventEmail({ recipients, teamName, title, date, startTime, location, organizerName, appUrl }) {
+  if (!recipients || recipients.length === 0) return { sent: false, reason: "no-recipients" };
+  return send({
+    to: recipients.map((r) => r.email),
+    subject: `You've been added to ${title} — ${teamName}`,
+    text: `${organizerName} added you to ${title} for ${teamName} on ${date} at ${startTime}, ${location}. Open ${appUrl} to accept or decline.\n\n— Mercer Tennis Program`,
+  });
+}

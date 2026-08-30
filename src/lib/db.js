@@ -43,6 +43,7 @@ export const createEvent = (...a) => backend.createEvent(...a);
 export const respondToEvent = (...a) => backend.respondToEvent(...a);
 export const reassignInvite = (...a) => backend.reassignInvite(...a);
 export const cancelEvent = (...a) => backend.cancelEvent(...a);
+export const addParticipants = (...a) => backend.addParticipants(...a);
 export const joinEvent = (...a) => backend.joinEvent(...a);
 export const withdrawFromEvent = (...a) => backend.withdrawFromEvent(...a);
 export const setWinterResult = (...a) => backend.setWinterResult(...a);

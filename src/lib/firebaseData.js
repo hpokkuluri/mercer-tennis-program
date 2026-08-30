@@ -292,6 +292,18 @@ export async function cancelEvent(teamId, eventId) {
   await updateDoc(doc(db, "teams", teamId, "events", eventId), { status: "cancelled" });
 }
 
+// Admin/organizer adding more players to an already-posted Winter event
+// (the initial Propose form only assigns an opening roster — teams often
+// need to fill a spot later). newParticipants is keyed by uid, same shape
+// as the participants created at propose time.
+export async function addParticipants(teamId, eventId, newParticipants) {
+  const ref = doc(db, "teams", teamId, "events", eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const participants = { ...snap.data().participants, ...newParticipants };
+  await updateDoc(ref, { participants, status: recomputeStatus({ ...snap.data(), participants }) });
+}
+
 // Open sign-up (Summer): anyone can join a posted practice/match — no
 // invite step. Joins are grouped in the order they happen into teams of
 // event.teamSize (first N lock in Team 1, the next batch queues toward
