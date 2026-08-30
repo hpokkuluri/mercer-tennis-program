@@ -31,6 +31,22 @@ export async function sendInviteEmail({ toEmail, toName, teamName, invitedByName
   });
 }
 
+export async function sendJoinedEmail({ toEmail, toName, teamName, appUrl }) {
+  return send({
+    to: toEmail,
+    subject: `You're on the team — ${teamName}`,
+    text: `Hi ${toName || ""},\n\nYou've joined ${teamName} on Mercer Tennis Program. Open ${appUrl} anytime to see the schedule, join practices and matches, and chat with your teammates.\n\n— Mercer Tennis Program`,
+  });
+}
+
+export async function sendRemovedEmail({ toEmail, toName, teamName, appUrl }) {
+  return send({
+    to: toEmail,
+    subject: `You've been removed from ${teamName}`,
+    text: `Hi ${toName || ""},\n\nYou've been removed from ${teamName} on Mercer Tennis Program and no longer have access to its schedule. If you think this was a mistake, reach out to your team admin.\n\n— Mercer Tennis Program`,
+  });
+}
+
 export async function sendEventEmails({ recipients, teamName, title, date, startTime, location, organizerName, appUrl }) {
   if (!recipients || recipients.length === 0) return { sent: false, reason: "no-recipients" };
   return send({

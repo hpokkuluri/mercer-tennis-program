@@ -45,6 +45,9 @@ export const reassignInvite = (...a) => backend.reassignInvite(...a);
 export const cancelEvent = (...a) => backend.cancelEvent(...a);
 export const joinEvent = (...a) => backend.joinEvent(...a);
 export const withdrawFromEvent = (...a) => backend.withdrawFromEvent(...a);
+export const setWinterResult = (...a) => backend.setWinterResult(...a);
+export const addSummerResult = (...a) => backend.addSummerResult(...a);
+export const deleteSummerResult = (...a) => backend.deleteSummerResult(...a);
 
 // comments
 export const subscribeComments = (...a) => backend.subscribeComments(...a);

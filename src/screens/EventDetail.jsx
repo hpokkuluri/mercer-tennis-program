@@ -15,7 +15,10 @@ const statusMap = {
 export default function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment, joinEvent, withdrawFromEvent } = useApp();
+  const {
+    events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment,
+    joinEvent, withdrawFromEvent, setWinterResult, addSummerResult, deleteSummerResult,
+  } = useApp();
   const event = events.find((e) => e.id === id);
   const [comments, setComments] = useState([]);
   const [comment, setComment] = useState("");
@@ -141,6 +144,24 @@ export default function EventDetail() {
           </>
         )}
 
+        {open ? (
+          <SummerResults
+            event={event}
+            groups={groups}
+            profile={profile}
+            isAdmin={isAdmin}
+            onAdd={(data) => addSummerResult(event.id, data)}
+            onDelete={(resultId) => deleteSummerResult(event.id, resultId)}
+          />
+        ) : (
+          <WinterResult
+            event={event}
+            profile={profile}
+            isAdmin={isAdmin}
+            onSave={(data) => setWinterResult(event.id, data)}
+          />
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <SectionLabel>Comments</SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -264,6 +285,176 @@ function GroupCard({ group, teamSize, participants }) {
           ))}
       </div>
     </Card>
+  );
+}
+
+function WinterResult({ event, onSave }) {
+  const existing = event.result;
+  const [formOpen, setFormOpen] = useState(false);
+  const [outcome, setOutcome] = useState(existing?.outcome || "win");
+  const [score, setScore] = useState(existing?.score || "");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await onSave({ outcome, score: score.trim() });
+      setFormOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!formOpen) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <SectionLabel>Result</SectionLabel>
+        {existing ? (
+          <Card style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <div>
+              <Badge tone={existing.outcome === "win" ? "green" : "red"}>{existing.outcome === "win" ? "Won" : "Lost"}</Badge>
+              {existing.score && <span style={{ marginLeft: 10, fontSize: 14, fontWeight: 700 }}>{existing.score}</span>}
+              <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>Logged by {existing.recordedByName}</div>
+            </div>
+            <button onClick={() => setFormOpen(true)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontWeight: 700, fontSize: 12.5 }} className="display">Edit</button>
+          </Card>
+        ) : (
+          <SecondaryButton onClick={() => setFormOpen(true)}>Log Result</SecondaryButton>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <SectionLabel>Log Result</SectionLabel>
+      <div style={{ display: "flex", gap: 8 }}>
+        {["win", "loss"].map((o) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => setOutcome(o)}
+            className="display"
+            style={{ flex: 1, padding: "10px 0", borderRadius: "var(--radius-md)", fontWeight: 700, fontSize: 13.5, textTransform: "capitalize", border: outcome === o ? "2px solid var(--text)" : "var(--border-width, 1px) solid var(--border)", background: outcome === o ? (o === "win" ? "var(--green-bg)" : "var(--red-bg)") : "var(--card)", color: outcome === o ? (o === "win" ? "var(--green-text)" : "var(--red-text)") : "var(--text-muted)" }}
+          >
+            {o === "win" ? "We won" : "We lost"}
+          </button>
+        ))}
+      </div>
+      <input
+        value={score}
+        onChange={(e) => setScore(e.target.value)}
+        placeholder="Score, e.g. 6-4, 6-2"
+        style={{ border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 14, outline: "none", background: "var(--card)", color: "var(--text)" }}
+      />
+      <div style={{ display: "flex", gap: 8 }}>
+        <SecondaryButton onClick={() => setFormOpen(false)} style={{ flex: 1 }}>Cancel</SecondaryButton>
+        <PrimaryButton onClick={save} disabled={busy} style={{ flex: 1 }}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+      </div>
+    </div>
+  );
+}
+
+function SummerResults({ event, groups, onAdd, onDelete, profile, isAdmin }) {
+  const fullGroups = groups.filter((g) => g.full);
+  const results = Object.entries(event.results || {}).sort((a, b) => (a[1].recordedAt || 0) - (b[1].recordedAt || 0));
+  const [formOpen, setFormOpen] = useState(false);
+  const [aIndex, setAIndex] = useState(0);
+  const [bIndex, setBIndex] = useState(1);
+  const [winner, setWinner] = useState("a");
+  const [score, setScore] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (aIndex === bIndex) return;
+    setBusy(true);
+    try {
+      await onAdd({
+        teamALabel: `Team ${aIndex + 1}`,
+        teamBLabel: `Team ${bIndex + 1}`,
+        winner,
+        score: score.trim(),
+      });
+      setFormOpen(false);
+      setScore("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <SectionLabel>Results</SectionLabel>
+      {results.length === 0 && !formOpen && <div style={{ fontSize: 13, color: "var(--text-faint)" }}>No results logged yet.</div>}
+      {results.map(([resultId, r]) => (
+        <Card key={resultId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>
+              {r.winner === "a" ? r.teamALabel : r.teamBLabel} beat {r.winner === "a" ? r.teamBLabel : r.teamALabel}
+              {r.score ? ` · ${r.score}` : ""}
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 3 }}>Logged by {r.recordedByName}</div>
+          </div>
+          {(isAdmin || r.recordedBy === profile.uid) && (
+            <button onClick={() => onDelete(resultId)} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: 12.5, fontWeight: 700 }} className="display">Remove</button>
+          )}
+        </Card>
+      ))}
+
+      {fullGroups.length >= 2 && (
+        formOpen ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <TeamPicker groups={fullGroups} value={aIndex} onChange={setAIndex} />
+              <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>vs</span>
+              <TeamPicker groups={fullGroups} value={bIndex} onChange={setBIndex} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["a", "b"].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setWinner(w)}
+                  className="display"
+                  style={{ flex: 1, padding: "10px 0", borderRadius: "var(--radius-md)", fontWeight: 700, fontSize: 13, border: winner === w ? "2px solid var(--text)" : "var(--border-width, 1px) solid var(--border)", background: winner === w ? "var(--green-bg)" : "var(--card)", color: winner === w ? "var(--green-text)" : "var(--text-muted)" }}
+                >
+                  Team {(w === "a" ? aIndex : bIndex) + 1} won
+                </button>
+              ))}
+            </div>
+            <input
+              value={score}
+              onChange={(e) => setScore(e.target.value)}
+              placeholder="Score, e.g. 6-4, 6-2"
+              style={{ border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 14, outline: "none", background: "var(--card)", color: "var(--text)" }}
+            />
+            {aIndex === bIndex && <div style={{ fontSize: 12, color: "var(--red-text)" }}>Pick two different teams.</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <SecondaryButton onClick={() => setFormOpen(false)} style={{ flex: 1 }}>Cancel</SecondaryButton>
+              <PrimaryButton onClick={save} disabled={busy || aIndex === bIndex} style={{ flex: 1 }}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+            </div>
+          </div>
+        ) : (
+          <SecondaryButton onClick={() => { setAIndex(fullGroups[0]?.index || 0); setBIndex(fullGroups[1]?.index ?? 1); setFormOpen(true); }}>
+            Log a Result
+          </SecondaryButton>
+        )
+      )}
+    </div>
+  );
+}
+
+function TeamPicker({ groups, value, onChange }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      style={{ flex: 1, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, fontWeight: 600, background: "var(--card)", color: "var(--text)" }}
+    >
+      {groups.map((g) => (
+        <option key={g.index} value={g.index}>Team {g.index + 1}</option>
+      ))}
+    </select>
   );
 }
 

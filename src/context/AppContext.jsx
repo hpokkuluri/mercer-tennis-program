@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { initials as initialsOf, colorFor } from "../lib/identity";
 import * as db from "../lib/db";
+import { sendJoinedEmail, sendRemovedEmail } from "../lib/email";
 
 const Ctx = createContext(null);
 
@@ -103,6 +104,9 @@ export function AppProvider({ children }) {
     const memberProfile = { name: profile.name, initials: profile.initials || initialsOf(profile.name), color: profile.color || colorFor(profile.uid), email: profile.email };
     const t = await db.joinTeam({ code, uid: profile.uid, profile: memberProfile });
     setProfile({ ...profile, teamId: t.id });
+    if (profile.email) {
+      sendJoinedEmail({ toEmail: profile.email, toName: profile.name, teamName: t.name, appUrl: window.location.origin }).catch(() => {});
+    }
     return t;
   }
 
@@ -123,7 +127,13 @@ export function AppProvider({ children }) {
     createTeam,
     joinTeamByCode,
     setAdmin: (uid, isAdminFlag) => db.setAdmin(team.id, uid, isAdminFlag),
-    removeMember: (uid) => db.removeMember(team.id, uid),
+    removeMember: async (uid) => {
+      const m = team.members?.[uid];
+      await db.removeMember(team.id, uid);
+      if (m?.email) {
+        sendRemovedEmail({ toEmail: m.email, toName: m.name, teamName: team.name, appUrl: window.location.origin }).catch(() => {});
+      }
+    },
     inviteMemberByEmail: (email) => db.inviteMemberByEmail(team.id, email, profile.uid, profile.name),
     changePassword,
     updateProfile,
@@ -135,6 +145,11 @@ export function AppProvider({ children }) {
     joinEvent: (eventId) =>
       db.joinEvent(team.id, eventId, { uid: profile.uid, name: profile.name, initials: profile.initials || initialsOf(profile.name), color: profile.color || colorFor(profile.uid) }),
     withdrawFromEvent: (eventId) => db.withdrawFromEvent(team.id, eventId, profile.uid),
+    setWinterResult: (eventId, { outcome, score }) =>
+      db.setWinterResult(team.id, eventId, { outcome, score, recordedBy: profile.uid, recordedByName: profile.name, recordedAt: Date.now() }),
+    addSummerResult: (eventId, { teamALabel, teamBLabel, winner, score }) =>
+      db.addSummerResult(team.id, eventId, { teamALabel, teamBLabel, winner, score, recordedBy: profile.uid, recordedByName: profile.name, recordedAt: Date.now() }),
+    deleteSummerResult: (eventId, resultId) => db.deleteSummerResult(team.id, eventId, resultId),
     subscribeComments: (eventId, cb) => db.subscribeComments(eventId, cb, team.id),
     postComment: (eventId, text) => db.postComment(eventId, { authorId: profile.uid, authorName: profile.name, text }, team.id),
     subscribeAnnouncements: (cb) => db.subscribeAnnouncements(team.id, cb),

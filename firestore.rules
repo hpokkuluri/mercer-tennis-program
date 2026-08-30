@@ -16,6 +16,9 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamId'])
+        && isAdmin(request.resource.data.teamId);
     }
 
     // Pending "invite by email" records — created by a team admin, consumed

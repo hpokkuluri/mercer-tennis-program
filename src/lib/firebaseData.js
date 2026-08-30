@@ -19,6 +19,7 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  deleteField,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -333,6 +334,25 @@ export async function withdrawFromEvent(teamId, eventId, uid) {
   const joinOrder = (event.joinOrder || []).filter((x) => x !== uid);
   const updated = { ...event, participants, joinOrder };
   await updateDoc(ref, { participants, joinOrder, status: recomputeStatus(updated) });
+}
+
+// Game results. Winter events (a single team vs an outside opponent) get
+// one win/loss + score result. Summer events can split into multiple
+// internally-formed teams, so results there are a list of head-to-head
+// matchups between those teams. Any team member can log a result — see
+// firestore.rules (events/{eventId} update is already open to any member).
+export async function setWinterResult(teamId, eventId, result) {
+  await updateDoc(doc(db, "teams", teamId, "events", eventId), { result });
+}
+
+export async function addSummerResult(teamId, eventId, result) {
+  const id = `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  await updateDoc(doc(db, "teams", teamId, "events", eventId), { [`results.${id}`]: result });
+  return id;
+}
+
+export async function deleteSummerResult(teamId, eventId, resultId) {
+  await updateDoc(doc(db, "teams", teamId, "events", eventId), { [`results.${resultId}`]: deleteField() });
 }
 
 // ---------- comments ----------

@@ -373,6 +373,38 @@ export async function withdrawFromEvent(teamId, eventId, uid) {
   writeAll(EVENTS_KEY, all);
 }
 
+// Game results. Winter events (a single team vs an outside opponent) get
+// one win/loss + score result. Summer events can split into multiple
+// internally-formed teams, so results there are a list of head-to-head
+// matchups between those teams. Any team member can log a result.
+export async function setWinterResult(teamId, eventId, result) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event) return;
+  event.result = result;
+  writeAll(EVENTS_KEY, all);
+}
+
+export async function addSummerResult(teamId, eventId, result) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event) return;
+  const id = genId("res");
+  event.results = { ...(event.results || {}), [id]: result };
+  writeAll(EVENTS_KEY, all);
+  return id;
+}
+
+export async function deleteSummerResult(teamId, eventId, resultId) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.results) return;
+  const results = { ...event.results };
+  delete results[resultId];
+  event.results = results;
+  writeAll(EVENTS_KEY, all);
+}
+
 // ---------- comments (per event) ----------
 
 export function subscribeComments(eventId, cb) {
