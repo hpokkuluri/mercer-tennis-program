@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { PrimaryButton, Field, ErrorText } from "../components/UI";
+import Logo from "../components/Logo";
 
 export default function Login() {
   const { signUp, signIn, resetPassword, usingFirebase } = useApp();
@@ -40,6 +41,7 @@ export default function Login() {
       <div style={{ height: "calc(env(safe-area-inset-top, 0px) + 64px)", flexShrink: 0 }} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 32 }}>
+        <Logo size={64} style={{ marginBottom: 14 }} />
         <div className="display" style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>Mercer Tennis Program</div>
         <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Scheduling for your tennis team</div>
         {!usingFirebase && (

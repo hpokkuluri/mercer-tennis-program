@@ -4,6 +4,7 @@ import Avatar from "../components/Avatar";
 import BottomNav from "../components/BottomNav";
 import { BellIcon, ChevronRightIcon } from "../components/Icons";
 import { isOpenEvent } from "../lib/groups";
+import Logo from "../components/Logo";
 
 export default function Hub() {
   const { team, events, profile } = useApp();
@@ -20,9 +21,12 @@ export default function Hub() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div style={{ padding: "calc(env(safe-area-inset-top, 0px) + 12px) 24px 0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-        <div>
-          <div className="display" style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em" }}>{team?.name}</div>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-muted)" }}>Pick a schedule</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+          <Logo size={36} showText={false} />
+          <div>
+            <div className="display" style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em" }}>{team?.name}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-muted)" }}>Pick a schedule</div>
+          </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
