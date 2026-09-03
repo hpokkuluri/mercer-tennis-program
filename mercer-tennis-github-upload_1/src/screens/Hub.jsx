@@ -3,34 +3,39 @@ import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import BottomNav from "../components/BottomNav";
 import { BellIcon, ChevronRightIcon } from "../components/Icons";
-import { isOpenEvent } from "../lib/groups";
+import Logo from "../components/Logo";
+import { alertCount } from "../lib/notifications";
 
 export default function Hub() {
-  const { team, events, profile } = useApp();
+  const { team, events, profile, isAdmin } = useApp();
   const navigate = useNavigate();
 
   const summerEvents = events.filter((e) => e.mode === "summer");
   const winterEvents = events.filter((e) => e.mode === "winter");
-  const myPendingCount = events.filter((e) => e.participants?.[profile.uid]?.status === "pending").length;
-  const myOpenToJoinCount = summerEvents.filter((e) => isOpenEvent(e) && e.status !== "cancelled" && !e.participants?.[profile.uid]).length;
-  const badgeCount = myPendingCount + myOpenToJoinCount;
+  const badgeCount = alertCount(team, events, profile, isAdmin);
 
   const nextOf = (list) => list.find((e) => e.status !== "cancelled");
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div style={{ padding: "calc(env(safe-area-inset-top, 0px) + 12px) 24px 0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-        <div>
-          <div className="display" style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em" }}>{team?.name}</div>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-muted)" }}>Pick a schedule</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+          <Logo size={36} showText={false} />
+          <div>
+            <div className="display" style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em" }}>{team?.name}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-muted)" }}>Pick a schedule</div>
+          </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ position: "relative", width: 40, height: 40, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button
+            onClick={() => navigate("/notifications")}
+            style={{ position: "relative", width: 40, height: 40, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
             <BellIcon style={{ color: "oklch(35% 0.01 260)" }} />
             {badgeCount > 0 && (
               <div style={{ position: "absolute", top: 7, right: 8, width: 8, height: 8, borderRadius: 999, background: "var(--red-solid)", border: "1.5px solid white" }} />
             )}
-          </div>
+          </button>
           <Avatar initials={profile.initials} color={profile.color} size={40} />
         </div>
       </div>

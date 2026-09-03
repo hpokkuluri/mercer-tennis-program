@@ -3,8 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import { Header, Field, PrimaryButton, ErrorText, SectionLabel } from "../components/UI";
-import { CalendarIcon, ClockIcon, PinIcon, ChevronRightIcon, CheckIcon } from "../components/Icons";
+import { CalendarIcon, ClockIcon, PinIcon, ChevronRightIcon, CheckIcon, WarningIcon } from "../components/Icons";
 import { sendEventEmails } from "../lib/email";
+import { isOnVacation } from "../lib/vacations";
 
 export default function Propose() {
   const { season } = useParams(); // 'summer' | 'winter'
@@ -56,7 +57,7 @@ export default function Propose() {
         selected.forEach((uid) => {
           const m = members.find((mm) => mm.uid === uid);
           participants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: "pending" };
-          if (m?.email) emailRecipients.push({ email: m.email, name: m.name });
+          if (m?.email && uid !== profile.uid) emailRecipients.push({ email: m.email, name: m.name });
         });
         id = await createEvent({ ...base, participants });
       } else {
@@ -132,10 +133,10 @@ export default function Propose() {
               <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green-solid)" }}>{selected.length} selected</span>
             </div>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-              {members
-                .filter((m) => m.uid !== profile.uid)
-                .map((m) => {
+              {members.map((m) => {
                   const on = selected.includes(m.uid);
+                  const isMe = m.uid === profile.uid;
+                  const onVacation = date && isOnVacation(m, date);
                   return (
                     <button type="button" key={m.uid} onClick={() => toggle(m.uid)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                       <div style={{ position: "relative" }}>
@@ -145,13 +146,23 @@ export default function Propose() {
                             <CheckIcon width={9} height={9} style={{ color: "var(--accent-text)" }} />
                           </div>
                         )}
+                        {onVacation && (
+                          <div style={{ position: "absolute", top: -2, left: -2, width: 18, height: 18, borderRadius: 999, background: "var(--red-solid, #d33)", border: "2px solid var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }} title="On vacation this date">
+                            <WarningIcon width={10} height={10} style={{ color: "white" }} />
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{m.name.split(" ")[0]}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: onVacation ? "var(--red-solid, #d33)" : "var(--text)" }}>{isMe ? "You" : m.name.split(" ")[0]}</div>
                     </button>
                   );
                 })}
             </div>
-            {members.length <= 1 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>No other teammates yet — invite them from the Team tab.</div>}
+            {members.some((m) => date && isOnVacation(m, date)) && (
+              <div style={{ fontSize: 12.5, color: "var(--red-solid, #d33)", display: "flex", alignItems: "center", gap: 6 }}>
+                <WarningIcon width={13} height={13} /> Players marked in red are on vacation this date — you can still assign them, but they'll be notified of the conflict.
+              </div>
+            )}
+            {members.length <= 1 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>You're the only member so far — invite teammates from the Team tab to assign them too.</div>}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

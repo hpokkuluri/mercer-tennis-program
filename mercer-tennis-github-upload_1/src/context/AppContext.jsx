@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { initials as initialsOf, colorFor } from "../lib/identity";
 import * as db from "../lib/db";
+import { sendJoinedEmail, sendRemovedEmail, sendAddedToEventEmail, sendVacationConflictEmail, sendSlotClaimedEmail } from "../lib/email";
+import { genVacationId, conflictsForRange } from "../lib/vacations";
 
 const Ctx = createContext(null);
 
@@ -103,6 +105,9 @@ export function AppProvider({ children }) {
     const memberProfile = { name: profile.name, initials: profile.initials || initialsOf(profile.name), color: profile.color || colorFor(profile.uid), email: profile.email };
     const t = await db.joinTeam({ code, uid: profile.uid, profile: memberProfile });
     setProfile({ ...profile, teamId: t.id });
+    if (profile.email) {
+      sendJoinedEmail({ toEmail: profile.email, toName: profile.name, teamName: t.name, appUrl: window.location.origin }).catch(() => {});
+    }
     return t;
   }
 
@@ -123,7 +128,13 @@ export function AppProvider({ children }) {
     createTeam,
     joinTeamByCode,
     setAdmin: (uid, isAdminFlag) => db.setAdmin(team.id, uid, isAdminFlag),
-    removeMember: (uid) => db.removeMember(team.id, uid),
+    removeMember: async (uid) => {
+      const m = team.members?.[uid];
+      await db.removeMember(team.id, uid);
+      if (m?.email) {
+        sendRemovedEmail({ toEmail: m.email, toName: m.name, teamName: team.name, appUrl: window.location.origin }).catch(() => {});
+      }
+    },
     inviteMemberByEmail: (email) => db.inviteMemberByEmail(team.id, email, profile.uid, profile.name),
     changePassword,
     updateProfile,
@@ -131,10 +142,57 @@ export function AppProvider({ children }) {
     respondToEvent: (eventId, status) => db.respondToEvent(team.id, eventId, profile.uid, status),
     reassignInvite: (eventId, toMember) =>
       db.reassignInvite(team.id, eventId, profile.uid, toMember.uid, toMember.name, toMember.initials, toMember.color),
+    openSlot: (eventId) => db.openSlot(team.id, eventId, profile.uid),
+    closeSlot: (eventId) => db.closeSlot(team.id, eventId, profile.uid),
+    claimSlot: async (eventId, fromUid) => {
+      const opener = team.members?.[fromUid];
+      const event = events.find((e) => e.id === eventId);
+      await db.claimSlot(team.id, eventId, fromUid, profile.uid, profile.name, profile.initials || initialsOf(profile.name), profile.color || colorFor(profile.uid));
+      if (opener?.email && event) {
+        sendSlotClaimedEmail({
+          toEmail: opener.email,
+          toName: opener.name,
+          title: event.title,
+          date: event.date,
+          claimedByName: profile.name,
+          teamName: team.name,
+          appUrl: window.location.origin,
+        }).catch(() => {});
+      }
+    },
     cancelEvent: (eventId) => db.cancelEvent(team.id, eventId),
+    addParticipants: async (eventId, uids) => {
+      const event = events.find((e) => e.id === eventId);
+      const newParticipants = {};
+      const emailRecipients = [];
+      uids.forEach((uid) => {
+        const m = team.members?.[uid];
+        if (!m) return;
+        newParticipants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: "pending" };
+        if (m.email) emailRecipients.push({ email: m.email, name: m.name });
+      });
+      await db.addParticipants(team.id, eventId, newParticipants);
+      if (event && emailRecipients.length > 0) {
+        sendAddedToEventEmail({
+          recipients: emailRecipients,
+          teamName: team.name,
+          title: event.title,
+          date: event.date,
+          startTime: event.startTime,
+          location: event.location,
+          organizerName: profile.name,
+          appUrl: window.location.origin,
+        }).catch(() => {});
+      }
+    },
     joinEvent: (eventId) =>
       db.joinEvent(team.id, eventId, { uid: profile.uid, name: profile.name, initials: profile.initials || initialsOf(profile.name), color: profile.color || colorFor(profile.uid) }),
     withdrawFromEvent: (eventId) => db.withdrawFromEvent(team.id, eventId, profile.uid),
+    setWinterResult: (eventId, { outcome, score }) =>
+      db.setWinterResult(team.id, eventId, { outcome, score, recordedBy: profile.uid, recordedByName: profile.name, recordedAt: Date.now() }),
+    addSummerResult: (eventId, { teamALabel, teamBLabel, winner, score }) =>
+      db.addSummerResult(team.id, eventId, { teamALabel, teamBLabel, winner, score, recordedBy: profile.uid, recordedByName: profile.name, recordedAt: Date.now() }),
+    deleteSummerResult: (eventId, resultId) => db.deleteSummerResult(team.id, eventId, resultId),
     subscribeComments: (eventId, cb) => db.subscribeComments(eventId, cb, team.id),
     postComment: (eventId, text) => db.postComment(eventId, { authorId: profile.uid, authorName: profile.name, text }, team.id),
     subscribeAnnouncements: (cb) => db.subscribeAnnouncements(team.id, cb),
@@ -142,6 +200,33 @@ export function AppProvider({ children }) {
     subscribeConversations: (cb) => db.subscribeConversations(profile.uid, cb, team.id),
     subscribeThread: (otherUid, cb) => db.subscribeThread(profile.uid, otherUid, cb, team.id),
     sendDM: (toMember, text) => db.sendDM(team.id, profile.uid, toMember, text),
+
+    // Vacation days live directly on the member record — see src/lib/vacations.js.
+    addVacation: async ({ start, end }) => {
+      const vacations = [...(team.members[profile.uid]?.vacations || []), { id: genVacationId(), start, end }];
+      await db.updateMemberInTeam(team.id, profile.uid, { vacations });
+      const conflicts = conflictsForRange(events, profile.uid, start, end);
+      if (conflicts.length > 0) {
+        const admins = Object.values(team.members).filter((m) => m.isAdmin && m.email && m.uid !== profile.uid);
+        if (admins.length > 0) {
+          conflicts.forEach((e) => {
+            sendVacationConflictEmail({
+              adminRecipients: admins,
+              playerName: profile.name,
+              title: e.title,
+              date: e.date,
+              teamName: team.name,
+              appUrl: window.location.origin,
+            }).catch(() => {});
+          });
+        }
+      }
+      return conflicts;
+    },
+    removeVacation: async (vacationId) => {
+      const vacations = (team.members[profile.uid]?.vacations || []).filter((v) => v.id !== vacationId);
+      await db.updateMemberInTeam(team.id, profile.uid, { vacations });
+    },
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

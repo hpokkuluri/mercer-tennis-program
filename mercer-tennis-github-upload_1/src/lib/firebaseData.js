@@ -19,6 +19,7 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  deleteField,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -287,8 +288,60 @@ export async function reassignInvite(teamId, eventId, fromUid, toUid, toName, to
   await updateDoc(ref, { participants, status: recomputeStatus({ ...snap.data(), participants }) });
 }
 
+// Slot marketplace (Winter only): a player who can't make a game they're
+// on the roster for opens their slot up to the whole team, instead of
+// having to already know who's free to hand it directly to (that's what
+// reassignInvite above is for). Anyone else on the team can then claim
+// it — see claimSlot.
+export async function openSlot(teamId, eventId, uid) {
+  const ref = doc(db, "teams", teamId, "events", eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const participants = { ...snap.data().participants };
+  if (!participants[uid]) return;
+  participants[uid] = { ...participants[uid], status: "open", openedAt: Date.now() };
+  await updateDoc(ref, { participants, status: recomputeStatus({ ...snap.data(), participants }) });
+}
+
+export async function claimSlot(teamId, eventId, fromUid, toUid, toName, toInitials, toColor) {
+  const ref = doc(db, "teams", teamId, "events", eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const participants = { ...snap.data().participants };
+  if (!participants[fromUid] || participants[fromUid].status !== "open") return;
+  delete participants[fromUid];
+  participants[toUid] = { uid: toUid, name: toName, initials: toInitials, color: toColor, status: "accepted", claimedFrom: fromUid, joinedAt: Date.now() };
+  await updateDoc(ref, { participants, status: recomputeStatus({ ...snap.data(), participants }) });
+}
+
+// Undo an open slot before anyone claims it — the player changed their
+// mind and can play after all. No-ops if it's already been claimed (the
+// participant is no longer "open" by then, so there's nothing to take back).
+export async function closeSlot(teamId, eventId, uid) {
+  const ref = doc(db, "teams", teamId, "events", eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const participants = { ...snap.data().participants };
+  if (!participants[uid] || participants[uid].status !== "open") return;
+  const { openedAt: _openedAt, ...rest } = participants[uid];
+  participants[uid] = { ...rest, status: "accepted" };
+  await updateDoc(ref, { participants, status: recomputeStatus({ ...snap.data(), participants }) });
+}
+
 export async function cancelEvent(teamId, eventId) {
   await updateDoc(doc(db, "teams", teamId, "events", eventId), { status: "cancelled" });
+}
+
+// Admin/organizer adding more players to an already-posted Winter event
+// (the initial Propose form only assigns an opening roster — teams often
+// need to fill a spot later). newParticipants is keyed by uid, same shape
+// as the participants created at propose time.
+export async function addParticipants(teamId, eventId, newParticipants) {
+  const ref = doc(db, "teams", teamId, "events", eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const participants = { ...snap.data().participants, ...newParticipants };
+  await updateDoc(ref, { participants, status: recomputeStatus({ ...snap.data(), participants }) });
 }
 
 // Open sign-up (Summer): anyone can join a posted practice/match — no
@@ -333,6 +386,25 @@ export async function withdrawFromEvent(teamId, eventId, uid) {
   const joinOrder = (event.joinOrder || []).filter((x) => x !== uid);
   const updated = { ...event, participants, joinOrder };
   await updateDoc(ref, { participants, joinOrder, status: recomputeStatus(updated) });
+}
+
+// Game results. Winter events (a single team vs an outside opponent) get
+// one win/loss + score result. Summer events can split into multiple
+// internally-formed teams, so results there are a list of head-to-head
+// matchups between those teams. Any team member can log a result — see
+// firestore.rules (events/{eventId} update is already open to any member).
+export async function setWinterResult(teamId, eventId, result) {
+  await updateDoc(doc(db, "teams", teamId, "events", eventId), { result });
+}
+
+export async function addSummerResult(teamId, eventId, result) {
+  const id = `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  await updateDoc(doc(db, "teams", teamId, "events", eventId), { [`results.${id}`]: result });
+  return id;
+}
+
+export async function deleteSummerResult(teamId, eventId, resultId) {
+  await updateDoc(doc(db, "teams", teamId, "events", eventId), { [`results.${resultId}`]: deleteField() });
 }
 
 // ---------- comments ----------

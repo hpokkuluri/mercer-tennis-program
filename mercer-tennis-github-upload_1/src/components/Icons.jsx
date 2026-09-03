@@ -181,3 +181,43 @@ export function SwapIcon(props) {
     </svg>
   );
 }
+
+export function HomeIcon(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" {...base} strokeWidth={2} {...props}>
+      <path d="M4 11.5 12 4l8 7.5" />
+      <path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9" />
+    </svg>
+  );
+}
+
+export function MoreTabIcon(props) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" {...base} strokeWidth={1.9} {...props}>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.8" />
+    </svg>
+  );
+}
+
+export function UploadIcon(props) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" {...base} strokeWidth={2} {...props}>
+      <path d="M12 16V4" />
+      <path d="M7 9l5-5 5 5" />
+      <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+    </svg>
+  );
+}
+
+export function WarningIcon(props) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" {...base} strokeWidth={2.1} {...props}>
+      <path d="M12 3.5 21.5 20h-19L12 3.5z" strokeLinejoin="round" />
+      <line x1="12" y1="10" x2="12" y2="14.5" />
+      <circle cx="12" cy="17.3" r="0.15" fill="currentColor" />
+    </svg>
+  );
+}

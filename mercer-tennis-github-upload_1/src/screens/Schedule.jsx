@@ -3,7 +3,7 @@ import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import EventCard from "../components/EventCard";
 import BottomNav from "../components/BottomNav";
-import { PlusIcon, ChevronLeftIcon } from "../components/Icons";
+import { PlusIcon, ChevronLeftIcon, UploadIcon } from "../components/Icons";
 import { SectionLabel } from "../components/UI";
 
 function groupByDate(events) {
@@ -21,6 +21,7 @@ export default function Schedule({ season }) {
 
   const scoped = events.filter((e) => e.mode === season);
   const canPropose = season === "summer" || isAdmin;
+  const canImport = season === "winter" && isAdmin;
   const groups = groupByDate(scoped);
   const label = season === "winter" ? "❄️ Winter Schedule" : "☀️ Summer Schedule";
 
@@ -36,7 +37,18 @@ export default function Schedule({ season }) {
           </button>
           <div className="display" style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.01em" }}>{label}</div>
         </div>
-        <Avatar initials={profile.initials} color={profile.color} size={38} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {canImport && (
+            <button
+              onClick={() => navigate("/winter/import")}
+              style={{ display: "flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", fontSize: 12.5, fontWeight: 700, color: "var(--text)" }}
+            >
+              <UploadIcon width={14} height={14} />
+              Import
+            </button>
+          )}
+          <Avatar initials={profile.initials} color={profile.color} size={38} />
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px 24px 24px", display: "flex", flexDirection: "column", gap: 10 }}>

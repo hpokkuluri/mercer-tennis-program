@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ChevronLeftIcon } from "./Icons";
+import { ChevronLeftIcon, HomeIcon } from "./Icons";
 
 export function Header({ title, onBack, right }) {
   const navigate = useNavigate();
@@ -27,6 +27,24 @@ export function Header({ title, onBack, right }) {
       <div className="display" style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{title}</div>
       {right || <div style={{ width: 36, height: 36 }} />}
     </div>
+  );
+}
+
+// Shared "go straight to the Hub" button used as the `right` slot of
+// Header on full-page detail screens that live outside the main tab
+// flow (Messages/Thread, Vacation Days, Game Ledger, Slot Marketplace,
+// Winter Import) — Header's own `onBack` already covers "go back one
+// step," this covers "go all the way home" per the More-hub navigation
+// requirement (back button + home button on every sub-page).
+export function HomeButton() {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate("/")}
+      style={{ width: 36, height: 36, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
+    >
+      <HomeIcon />
+    </button>
   );
 }
 
@@ -100,9 +118,10 @@ export function SecondaryButton({ children, tone = "neutral", style = {}, ...pro
   );
 }
 
-export function Card({ children, style = {} }) {
+export function Card({ children, style = {}, ...rest }) {
   return (
     <div
+      {...rest}
       style={{
         background: "var(--card)",
         border: "var(--border-width, 1px) solid var(--border)",

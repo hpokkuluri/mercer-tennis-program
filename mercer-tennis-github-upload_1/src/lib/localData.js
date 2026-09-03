@@ -322,10 +322,68 @@ export async function reassignInvite(teamId, eventId, fromUid, toUid, toName, to
   writeAll(EVENTS_KEY, all);
 }
 
+// Slot marketplace (Winter only): a player who can't make a game they're
+// on the roster for opens their slot up to the whole team, instead of
+// having to already know who's free to hand it directly to (that's what
+// reassignInvite above is for). Anyone else on the team can then claim
+// it — see claimSlot.
+export async function openSlot(teamId, eventId, uid) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.participants[uid]) return;
+  event.participants[uid] = { ...event.participants[uid], status: "open", openedAt: Date.now() };
+  recomputeStatus(event);
+  writeAll(EVENTS_KEY, all);
+}
+
+export async function claimSlot(teamId, eventId, fromUid, toUid, toName, toInitials, toColor) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.participants[fromUid] || event.participants[fromUid].status !== "open") return;
+  delete event.participants[fromUid];
+  event.participants[toUid] = {
+    uid: toUid,
+    name: toName,
+    initials: toInitials,
+    color: toColor,
+    status: "accepted",
+    claimedFrom: fromUid,
+    joinedAt: Date.now(),
+  };
+  recomputeStatus(event);
+  writeAll(EVENTS_KEY, all);
+}
+
+// Undo an open slot before anyone claims it — the player changed their
+// mind and can play after all. No-ops if it's already been claimed (the
+// participant is no longer "open" by then, so there's nothing to take back).
+export async function closeSlot(teamId, eventId, uid) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.participants[uid] || event.participants[uid].status !== "open") return;
+  const { openedAt: _openedAt, ...rest } = event.participants[uid];
+  event.participants[uid] = { ...rest, status: "accepted" };
+  recomputeStatus(event);
+  writeAll(EVENTS_KEY, all);
+}
+
 export async function cancelEvent(teamId, eventId) {
   const all = readAll(EVENTS_KEY);
   if (!all[eventId]) return;
   all[eventId].status = "cancelled";
+  writeAll(EVENTS_KEY, all);
+}
+
+// Admin/organizer adding more players to an already-posted Winter event
+// (the initial Propose form only assigns an opening roster — teams often
+// need to fill a spot later). newParticipants is keyed by uid, same shape
+// as the participants created at propose time.
+export async function addParticipants(teamId, eventId, newParticipants) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event) return;
+  event.participants = { ...event.participants, ...newParticipants };
+  recomputeStatus(event);
   writeAll(EVENTS_KEY, all);
 }
 
@@ -370,6 +428,38 @@ export async function withdrawFromEvent(teamId, eventId, uid) {
   delete event.participants[uid];
   event.joinOrder = (event.joinOrder || []).filter((x) => x !== uid);
   recomputeStatus(event);
+  writeAll(EVENTS_KEY, all);
+}
+
+// Game results. Winter events (a single team vs an outside opponent) get
+// one win/loss + score result. Summer events can split into multiple
+// internally-formed teams, so results there are a list of head-to-head
+// matchups between those teams. Any team member can log a result.
+export async function setWinterResult(teamId, eventId, result) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event) return;
+  event.result = result;
+  writeAll(EVENTS_KEY, all);
+}
+
+export async function addSummerResult(teamId, eventId, result) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event) return;
+  const id = genId("res");
+  event.results = { ...(event.results || {}), [id]: result };
+  writeAll(EVENTS_KEY, all);
+  return id;
+}
+
+export async function deleteSummerResult(teamId, eventId, resultId) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.results) return;
+  const results = { ...event.results };
+  delete results[resultId];
+  event.results = results;
   writeAll(EVENTS_KEY, all);
 }
 

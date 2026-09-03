@@ -3,8 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import { Header, Card, Badge, SectionLabel, PrimaryButton, SecondaryButton } from "../components/UI";
-import { RacketIcon, TrophyIcon, CalendarIcon, PinIcon, CheckIcon, XIcon, DotsIcon, SwapIcon } from "../components/Icons";
+import { RacketIcon, TrophyIcon, CalendarIcon, PinIcon, CheckIcon, XIcon, DotsIcon, SwapIcon, WarningIcon } from "../components/Icons";
 import { isOpenEvent, computeGroups } from "../lib/groups";
+import { isOnVacation } from "../lib/vacations";
 
 const statusMap = {
   confirmed: { tone: "green", label: "Confirmed" },
@@ -12,14 +13,27 @@ const statusMap = {
   attention: { tone: "red", label: "Needs a player" },
 };
 
+function todayStr() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment, joinEvent, withdrawFromEvent } = useApp();
+  const {
+    events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment,
+    joinEvent, withdrawFromEvent, setWinterResult, addSummerResult, deleteSummerResult, addParticipants,
+    openSlot, closeSlot, claimSlot,
+  } = useApp();
   const event = events.find((e) => e.id === id);
   const [comments, setComments] = useState([]);
   const [comment, setComment] = useState("");
   const [reassignOpen, setReassignOpen] = useState(false);
+  const [givingUp, setGivingUp] = useState(false);
+  const [closingSlot, setClosingSlot] = useState(false);
+  const [claimingUid, setClaimingUid] = useState(null);
 
   useEffect(() => {
     if (!event) return undefined;
@@ -42,11 +56,17 @@ export default function EventDetail() {
   const accepted = participants.filter((p) => p.status === "accepted");
   const pending = participants.filter((p) => p.status === "pending");
   const declined = participants.filter((p) => p.status === "declined");
+  const openSlots = participants.filter((p) => p.status === "open");
   const s = statusMap[event.status] || statusMap.pending;
   const me = event.participants?.[profile.uid];
   const canRespond = !open && me && me.status === "pending";
   const canStillReassign = !open && me && me.status !== "accepted";
   const availableToReassign = members.filter((m) => !event.participants?.[m.uid]);
+  const isUpcoming = !open && event.date >= todayStr();
+  // Pending players already have Decline/Reassign; this is for someone
+  // who already accepted and only later found out they can't make it
+  // (a new conflict, a vacation, etc.) — no other way to back out.
+  const canGiveUpSlot = !open && isUpcoming && me && me.status === "accepted";
 
   const { teamSize, groups } = open ? computeGroups(event) : { teamSize: 0, groups: [] };
   const meJoined = open && Boolean(event.participants?.[profile.uid]);
@@ -70,6 +90,33 @@ export default function EventDetail() {
   }
   async function withdraw() {
     await withdrawFromEvent(event.id);
+  }
+  async function giveUpSlot() {
+    setGivingUp(true);
+    try {
+      await openSlot(event.id);
+      await postComment(event.id, `🔄 ${profile.name.split(" ")[0]}'s spot is open — anyone on the team can claim it (Slot Marketplace).`);
+    } finally {
+      setGivingUp(false);
+    }
+  }
+  async function cancelOpenSlot() {
+    setClosingSlot(true);
+    try {
+      await closeSlot(event.id);
+      await postComment(event.id, `🔒 ${profile.name.split(" ")[0]} took their spot back — no longer up for grabs.`);
+    } finally {
+      setClosingSlot(false);
+    }
+  }
+  async function claim(fromUid) {
+    setClaimingUid(fromUid);
+    try {
+      await claimSlot(event.id, fromUid);
+      await postComment(event.id, `✅ ${profile.name.split(" ")[0]} claimed the open spot.`);
+    } finally {
+      setClaimingUid(null);
+    }
   }
 
   return (
@@ -135,10 +182,49 @@ export default function EventDetail() {
           )
         ) : (
           <>
-            <RosterGroup label="Accepted" tone="green" people={accepted} icon={<CheckIcon width={16} height={16} style={{ color: "var(--green-solid)" }} />} />
-            <RosterGroup label="Pending" tone="amber" people={pending} icon={<span style={{ color: "var(--amber-solid)" }}><DotsIcon width={14} height={14} /></span>} />
-            <RosterGroup label="Declined" tone="red" people={declined} icon={<XIcon width={15} height={15} style={{ color: "var(--red-solid)" }} />} />
+            <RosterGroup label="Accepted" tone="green" people={accepted} icon={<CheckIcon width={16} height={16} style={{ color: "var(--green-solid)" }} />} team={team} eventDate={event.date} />
+            <RosterGroup label="Pending" tone="amber" people={pending} icon={<span style={{ color: "var(--amber-solid)" }}><DotsIcon width={14} height={14} /></span>} team={team} eventDate={event.date} />
+            <RosterGroup label="Declined" tone="red" people={declined} icon={<XIcon width={15} height={15} style={{ color: "var(--red-solid)" }} />} team={team} eventDate={event.date} />
+            {openSlots.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "oklch(45% 0.12 250)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Open · {openSlots.length}</div>
+                <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  {openSlots.map((p, i) => (
+                    <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < openSlots.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
+                      <Avatar initials={p.initials} color={p.color} size={34} />
+                      <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}'s spot — up for grabs</div>
+                      {p.uid !== profile.uid && !event.participants?.[profile.uid] && (
+                        <SecondaryButton style={{ width: "auto", padding: "8px 14px" }} disabled={claimingUid === p.uid} onClick={() => claim(p.uid)}>
+                          {claimingUid === p.uid ? "…" : "Claim"}
+                        </SecondaryButton>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(isAdmin || event.organizerId === profile.uid) && event.status !== "cancelled" && availableToReassign.length > 0 && (
+              <AddPlayers candidates={availableToReassign} onAdd={(uids) => addParticipants(event.id, uids)} />
+            )}
           </>
+        )}
+
+        {open ? (
+          <SummerResults
+            event={event}
+            groups={groups}
+            profile={profile}
+            isAdmin={isAdmin}
+            onAdd={(data) => addSummerResult(event.id, data)}
+            onDelete={(resultId) => deleteSummerResult(event.id, resultId)}
+          />
+        ) : (
+          <WinterResult
+            event={event}
+            profile={profile}
+            isAdmin={isAdmin}
+            onSave={(data) => setWinterResult(event.id, data)}
+          />
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -186,6 +272,21 @@ export default function EventDetail() {
               <SwapIcon /> Reassign
             </button>
             <PrimaryButton data-testid="accept-btn" onClick={() => respond("accepted")} style={{ flex: 1.3 }}>Accept</PrimaryButton>
+          </div>
+        )}
+        {canGiveUpSlot && (
+          <SecondaryButton tone="neutral" disabled={givingUp} onClick={giveUpSlot}>
+            {givingUp ? "Opening your spot…" : "Can't make it? Open your spot to the team"}
+          </SecondaryButton>
+        )}
+        {!open && me?.status === "open" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: "var(--text-faint)", textAlign: "center" }}>
+              Your spot is open in the Slot Marketplace — waiting for a teammate to claim it.
+            </div>
+            <SecondaryButton tone="neutral" disabled={closingSlot} onClick={cancelOpenSlot}>
+              {closingSlot ? "Cancelling…" : "Cancel — I'll play after all"}
+            </SecondaryButton>
           </div>
         )}
         {!canRespond && me?.status === "declined" && !reassignOpen && (
@@ -267,20 +368,257 @@ function GroupCard({ group, teamSize, participants }) {
   );
 }
 
-function RosterGroup({ label, tone, people, icon }) {
+function AddPlayers({ candidates, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  function toggle(uid) {
+    setSelected((s) => (s.includes(uid) ? s.filter((x) => x !== uid) : [...s, uid]));
+  }
+
+  async function submit() {
+    setBusy(true);
+    try {
+      await onAdd(selected);
+      setSelected([]);
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <SecondaryButton onClick={() => setOpen(true)}>Add Players</SecondaryButton>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <SectionLabel>Add Players</SectionLabel>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {candidates.map((m) => {
+          const on = selected.includes(m.uid);
+          return (
+            <button type="button" key={m.uid} onClick={() => toggle(m.uid)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ position: "relative" }}>
+                <Avatar initials={m.initials} color={m.color} size={48} ring={on ? "var(--accent)" : undefined} />
+                {on && (
+                  <div style={{ position: "absolute", bottom: -2, right: -2, width: 17, height: 17, borderRadius: 999, background: "var(--accent)", border: "2px solid var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <CheckIcon width={8} height={8} style={{ color: "var(--accent-text)" }} />
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{m.name.split(" ")[0]}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <SecondaryButton onClick={() => { setOpen(false); setSelected([]); }} style={{ flex: 1 }}>Cancel</SecondaryButton>
+        <PrimaryButton onClick={submit} disabled={busy || selected.length === 0} style={{ flex: 1 }}>
+          {busy ? "Adding…" : `Add ${selected.length || ""} Player${selected.length === 1 ? "" : "s"}`}
+        </PrimaryButton>
+      </div>
+    </div>
+  );
+}
+
+function WinterResult({ event, onSave }) {
+  const existing = event.result;
+  const [formOpen, setFormOpen] = useState(false);
+  const [outcome, setOutcome] = useState(existing?.outcome || "win");
+  const [score, setScore] = useState(existing?.score || "");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await onSave({ outcome, score: score.trim() });
+      setFormOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!formOpen) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <SectionLabel>Result</SectionLabel>
+        {existing ? (
+          <Card style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <div>
+              <Badge tone={existing.outcome === "win" ? "green" : "red"}>{existing.outcome === "win" ? "Won" : "Lost"}</Badge>
+              {existing.score && <span style={{ marginLeft: 10, fontSize: 14, fontWeight: 700 }}>{existing.score}</span>}
+              <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>Logged by {existing.recordedByName}</div>
+            </div>
+            <button onClick={() => setFormOpen(true)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontWeight: 700, fontSize: 12.5 }} className="display">Edit</button>
+          </Card>
+        ) : (
+          <SecondaryButton onClick={() => setFormOpen(true)}>Log Result</SecondaryButton>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <SectionLabel>Log Result</SectionLabel>
+      <div style={{ display: "flex", gap: 8 }}>
+        {["win", "loss"].map((o) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => setOutcome(o)}
+            className="display"
+            style={{ flex: 1, padding: "10px 0", borderRadius: "var(--radius-md)", fontWeight: 700, fontSize: 13.5, textTransform: "capitalize", border: outcome === o ? "2px solid var(--text)" : "var(--border-width, 1px) solid var(--border)", background: outcome === o ? (o === "win" ? "var(--green-bg)" : "var(--red-bg)") : "var(--card)", color: outcome === o ? (o === "win" ? "var(--green-text)" : "var(--red-text)") : "var(--text-muted)" }}
+          >
+            {o === "win" ? "We won" : "We lost"}
+          </button>
+        ))}
+      </div>
+      <input
+        value={score}
+        onChange={(e) => setScore(e.target.value)}
+        placeholder="Score, e.g. 6-4, 6-2"
+        style={{ border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 14, outline: "none", background: "var(--card)", color: "var(--text)" }}
+      />
+      <div style={{ display: "flex", gap: 8 }}>
+        <SecondaryButton onClick={() => setFormOpen(false)} style={{ flex: 1 }}>Cancel</SecondaryButton>
+        <PrimaryButton onClick={save} disabled={busy} style={{ flex: 1 }}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+      </div>
+    </div>
+  );
+}
+
+function SummerResults({ event, groups, onAdd, onDelete, profile, isAdmin }) {
+  const fullGroups = groups.filter((g) => g.full);
+  const results = Object.entries(event.results || {}).sort((a, b) => (a[1].recordedAt || 0) - (b[1].recordedAt || 0));
+  const [formOpen, setFormOpen] = useState(false);
+  const [aIndex, setAIndex] = useState(0);
+  const [bIndex, setBIndex] = useState(1);
+  const [winner, setWinner] = useState("a");
+  const [score, setScore] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (aIndex === bIndex) return;
+    setBusy(true);
+    try {
+      await onAdd({
+        teamALabel: `Team ${aIndex + 1}`,
+        teamBLabel: `Team ${bIndex + 1}`,
+        winner,
+        score: score.trim(),
+      });
+      setFormOpen(false);
+      setScore("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <SectionLabel>Results</SectionLabel>
+      {results.length === 0 && !formOpen && <div style={{ fontSize: 13, color: "var(--text-faint)" }}>No results logged yet.</div>}
+      {results.map(([resultId, r]) => (
+        <Card key={resultId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>
+              {r.winner === "a" ? r.teamALabel : r.teamBLabel} beat {r.winner === "a" ? r.teamBLabel : r.teamALabel}
+              {r.score ? ` · ${r.score}` : ""}
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 3 }}>Logged by {r.recordedByName}</div>
+          </div>
+          {(isAdmin || r.recordedBy === profile.uid) && (
+            <button onClick={() => onDelete(resultId)} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: 12.5, fontWeight: 700 }} className="display">Remove</button>
+          )}
+        </Card>
+      ))}
+
+      {fullGroups.length >= 2 && (
+        formOpen ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <TeamPicker groups={fullGroups} value={aIndex} onChange={setAIndex} />
+              <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>vs</span>
+              <TeamPicker groups={fullGroups} value={bIndex} onChange={setBIndex} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["a", "b"].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setWinner(w)}
+                  className="display"
+                  style={{ flex: 1, padding: "10px 0", borderRadius: "var(--radius-md)", fontWeight: 700, fontSize: 13, border: winner === w ? "2px solid var(--text)" : "var(--border-width, 1px) solid var(--border)", background: winner === w ? "var(--green-bg)" : "var(--card)", color: winner === w ? "var(--green-text)" : "var(--text-muted)" }}
+                >
+                  Team {(w === "a" ? aIndex : bIndex) + 1} won
+                </button>
+              ))}
+            </div>
+            <input
+              value={score}
+              onChange={(e) => setScore(e.target.value)}
+              placeholder="Score, e.g. 6-4, 6-2"
+              style={{ border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 14, outline: "none", background: "var(--card)", color: "var(--text)" }}
+            />
+            {aIndex === bIndex && <div style={{ fontSize: 12, color: "var(--red-text)" }}>Pick two different teams.</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <SecondaryButton onClick={() => setFormOpen(false)} style={{ flex: 1 }}>Cancel</SecondaryButton>
+              <PrimaryButton onClick={save} disabled={busy || aIndex === bIndex} style={{ flex: 1 }}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+            </div>
+          </div>
+        ) : (
+          <SecondaryButton onClick={() => { setAIndex(fullGroups[0]?.index || 0); setBIndex(fullGroups[1]?.index ?? 1); setFormOpen(true); }}>
+            Log a Result
+          </SecondaryButton>
+        )
+      )}
+    </div>
+  );
+}
+
+function TeamPicker({ groups, value, onChange }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      style={{ flex: 1, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, fontWeight: 600, background: "var(--card)", color: "var(--text)" }}
+    >
+      {groups.map((g) => (
+        <option key={g.index} value={g.index}>Team {g.index + 1}</option>
+      ))}
+    </select>
+  );
+}
+
+function RosterGroup({ label, tone, people, icon, team, eventDate }) {
   if (people.length === 0) return null;
   const toneColor = { green: "oklch(40% 0.1 140)", amber: "oklch(45% 0.11 65)", red: "oklch(50% 0.15 25)" }[tone];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: toneColor, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label} · {people.length}</div>
       <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-        {people.map((p, i) => (
-          <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < people.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-            <Avatar initials={p.initials} color={p.color} size={34} />
-            <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}{p.reassignedFrom ? " (reassigned)" : ""}</div>
-            {icon}
-          </div>
-        ))}
+        {people.map((p, i) => {
+          const onVacation = eventDate && team?.members?.[p.uid] && isOnVacation(team.members[p.uid], eventDate);
+          return (
+            <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < people.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
+              <Avatar initials={p.initials} color={p.color} size={34} />
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
+                {p.name}{p.reassignedFrom ? " (reassigned)" : ""}{p.claimedFrom ? " (claimed)" : ""}
+                {onVacation && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--red-text)", marginTop: 2 }}>
+                    <WarningIcon /> On vacation this date
+                  </div>
+                )}
+              </div>
+              {icon}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
