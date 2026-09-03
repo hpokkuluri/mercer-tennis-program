@@ -3,8 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import { Header, Card, Badge, SectionLabel, PrimaryButton, SecondaryButton } from "../components/UI";
-import { RacketIcon, TrophyIcon, CalendarIcon, PinIcon, CheckIcon, XIcon, DotsIcon, SwapIcon } from "../components/Icons";
+import { RacketIcon, TrophyIcon, CalendarIcon, PinIcon, CheckIcon, XIcon, DotsIcon, SwapIcon, WarningIcon } from "../components/Icons";
 import { isOpenEvent, computeGroups } from "../lib/groups";
+import { isOnVacation } from "../lib/vacations";
 
 const statusMap = {
   confirmed: { tone: "green", label: "Confirmed" },
@@ -12,17 +13,27 @@ const statusMap = {
   attention: { tone: "red", label: "Needs a player" },
 };
 
+function todayStr() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const {
     events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment,
     joinEvent, withdrawFromEvent, setWinterResult, addSummerResult, deleteSummerResult, addParticipants,
+    openSlot, closeSlot, claimSlot,
   } = useApp();
   const event = events.find((e) => e.id === id);
   const [comments, setComments] = useState([]);
   const [comment, setComment] = useState("");
   const [reassignOpen, setReassignOpen] = useState(false);
+  const [givingUp, setGivingUp] = useState(false);
+  const [closingSlot, setClosingSlot] = useState(false);
+  const [claimingUid, setClaimingUid] = useState(null);
 
   useEffect(() => {
     if (!event) return undefined;
@@ -45,11 +56,17 @@ export default function EventDetail() {
   const accepted = participants.filter((p) => p.status === "accepted");
   const pending = participants.filter((p) => p.status === "pending");
   const declined = participants.filter((p) => p.status === "declined");
+  const openSlots = participants.filter((p) => p.status === "open");
   const s = statusMap[event.status] || statusMap.pending;
   const me = event.participants?.[profile.uid];
   const canRespond = !open && me && me.status === "pending";
   const canStillReassign = !open && me && me.status !== "accepted";
   const availableToReassign = members.filter((m) => !event.participants?.[m.uid]);
+  const isUpcoming = !open && event.date >= todayStr();
+  // Pending players already have Decline/Reassign; this is for someone
+  // who already accepted and only later found out they can't make it
+  // (a new conflict, a vacation, etc.) — no other way to back out.
+  const canGiveUpSlot = !open && isUpcoming && me && me.status === "accepted";
 
   const { teamSize, groups } = open ? computeGroups(event) : { teamSize: 0, groups: [] };
   const meJoined = open && Boolean(event.participants?.[profile.uid]);
@@ -73,6 +90,33 @@ export default function EventDetail() {
   }
   async function withdraw() {
     await withdrawFromEvent(event.id);
+  }
+  async function giveUpSlot() {
+    setGivingUp(true);
+    try {
+      await openSlot(event.id);
+      await postComment(event.id, `🔄 ${profile.name.split(" ")[0]}'s spot is open — anyone on the team can claim it (Slot Marketplace).`);
+    } finally {
+      setGivingUp(false);
+    }
+  }
+  async function cancelOpenSlot() {
+    setClosingSlot(true);
+    try {
+      await closeSlot(event.id);
+      await postComment(event.id, `🔒 ${profile.name.split(" ")[0]} took their spot back — no longer up for grabs.`);
+    } finally {
+      setClosingSlot(false);
+    }
+  }
+  async function claim(fromUid) {
+    setClaimingUid(fromUid);
+    try {
+      await claimSlot(event.id, fromUid);
+      await postComment(event.id, `✅ ${profile.name.split(" ")[0]} claimed the open spot.`);
+    } finally {
+      setClaimingUid(null);
+    }
   }
 
   return (
@@ -138,9 +182,27 @@ export default function EventDetail() {
           )
         ) : (
           <>
-            <RosterGroup label="Accepted" tone="green" people={accepted} icon={<CheckIcon width={16} height={16} style={{ color: "var(--green-solid)" }} />} />
-            <RosterGroup label="Pending" tone="amber" people={pending} icon={<span style={{ color: "var(--amber-solid)" }}><DotsIcon width={14} height={14} /></span>} />
-            <RosterGroup label="Declined" tone="red" people={declined} icon={<XIcon width={15} height={15} style={{ color: "var(--red-solid)" }} />} />
+            <RosterGroup label="Accepted" tone="green" people={accepted} icon={<CheckIcon width={16} height={16} style={{ color: "var(--green-solid)" }} />} team={team} eventDate={event.date} />
+            <RosterGroup label="Pending" tone="amber" people={pending} icon={<span style={{ color: "var(--amber-solid)" }}><DotsIcon width={14} height={14} /></span>} team={team} eventDate={event.date} />
+            <RosterGroup label="Declined" tone="red" people={declined} icon={<XIcon width={15} height={15} style={{ color: "var(--red-solid)" }} />} team={team} eventDate={event.date} />
+            {openSlots.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "oklch(45% 0.12 250)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Open · {openSlots.length}</div>
+                <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  {openSlots.map((p, i) => (
+                    <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < openSlots.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
+                      <Avatar initials={p.initials} color={p.color} size={34} />
+                      <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}'s spot — up for grabs</div>
+                      {p.uid !== profile.uid && !event.participants?.[profile.uid] && (
+                        <SecondaryButton style={{ width: "auto", padding: "8px 14px" }} disabled={claimingUid === p.uid} onClick={() => claim(p.uid)}>
+                          {claimingUid === p.uid ? "…" : "Claim"}
+                        </SecondaryButton>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {(isAdmin || event.organizerId === profile.uid) && event.status !== "cancelled" && availableToReassign.length > 0 && (
               <AddPlayers candidates={availableToReassign} onAdd={(uids) => addParticipants(event.id, uids)} />
             )}
@@ -210,6 +272,21 @@ export default function EventDetail() {
               <SwapIcon /> Reassign
             </button>
             <PrimaryButton data-testid="accept-btn" onClick={() => respond("accepted")} style={{ flex: 1.3 }}>Accept</PrimaryButton>
+          </div>
+        )}
+        {canGiveUpSlot && (
+          <SecondaryButton tone="neutral" disabled={givingUp} onClick={giveUpSlot}>
+            {givingUp ? "Opening your spot…" : "Can't make it? Open your spot to the team"}
+          </SecondaryButton>
+        )}
+        {!open && me?.status === "open" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: "var(--text-faint)", textAlign: "center" }}>
+              Your spot is open in the Slot Marketplace — waiting for a teammate to claim it.
+            </div>
+            <SecondaryButton tone="neutral" disabled={closingSlot} onClick={cancelOpenSlot}>
+              {closingSlot ? "Cancelling…" : "Cancel — I'll play after all"}
+            </SecondaryButton>
           </div>
         )}
         {!canRespond && me?.status === "declined" && !reassignOpen && (
@@ -518,20 +595,30 @@ function TeamPicker({ groups, value, onChange }) {
   );
 }
 
-function RosterGroup({ label, tone, people, icon }) {
+function RosterGroup({ label, tone, people, icon, team, eventDate }) {
   if (people.length === 0) return null;
   const toneColor = { green: "oklch(40% 0.1 140)", amber: "oklch(45% 0.11 65)", red: "oklch(50% 0.15 25)" }[tone];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: toneColor, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label} · {people.length}</div>
       <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-        {people.map((p, i) => (
-          <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < people.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-            <Avatar initials={p.initials} color={p.color} size={34} />
-            <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}{p.reassignedFrom ? " (reassigned)" : ""}</div>
-            {icon}
-          </div>
-        ))}
+        {people.map((p, i) => {
+          const onVacation = eventDate && team?.members?.[p.uid] && isOnVacation(team.members[p.uid], eventDate);
+          return (
+            <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < people.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
+              <Avatar initials={p.initials} color={p.color} size={34} />
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
+                {p.name}{p.reassignedFrom ? " (reassigned)" : ""}{p.claimedFrom ? " (claimed)" : ""}
+                {onVacation && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--red-text)", marginTop: 2 }}>
+                    <WarningIcon /> On vacation this date
+                  </div>
+                )}
+              </div>
+              {icon}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

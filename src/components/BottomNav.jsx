@@ -1,10 +1,10 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { ScheduleTabIcon, TeamTabIcon, ChatIcon } from "./Icons";
+import { ScheduleTabIcon, TeamTabIcon, MoreTabIcon } from "./Icons";
 
 const TABS = [
   { path: "/", label: "Schedule", Icon: ScheduleTabIcon },
   { path: "/team", label: "Team", Icon: TeamTabIcon },
-  { path: "/messages", label: "Messages", Icon: ChatIcon },
+  { path: "/more", label: "More", Icon: MoreTabIcon, alsoActiveOn: ["/messages", "/vacations", "/ledger", "/marketplace"] },
 ];
 
 export default function BottomNav() {
@@ -23,11 +23,11 @@ export default function BottomNav() {
         bottom: 0,
       }}
     >
-      {TABS.map(({ path, label, Icon }) => {
+      {TABS.map(({ path, label, Icon, alsoActiveOn }) => {
         const active =
           path === "/"
             ? location.pathname === "/" || location.pathname === "/summer" || location.pathname === "/winter"
-            : location.pathname === path;
+            : location.pathname === path || (alsoActiveOn || []).some((p) => location.pathname.startsWith(p));
         return (
           <button
             key={path}

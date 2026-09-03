@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
-import BottomNav from "../components/BottomNav";
-import { SectionLabel } from "../components/UI";
+import { Header, SectionLabel, HomeButton } from "../components/UI";
 
 export default function Messages() {
   const { team, profile, subscribeConversations } = useApp();
@@ -20,11 +19,9 @@ export default function Messages() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <div style={{ padding: "calc(env(safe-area-inset-top, 0px) + 12px) 24px 4px 24px", flexShrink: 0 }}>
-        <div className="display" style={{ fontSize: 20, fontWeight: 700 }}>Messages</div>
-      </div>
+      <Header title="Messaging" right={<HomeButton />} />
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "4px 24px 24px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
         {convos.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <SectionLabel>Recent</SectionLabel>
@@ -67,8 +64,6 @@ export default function Messages() {
           </div>
         </div>
       </div>
-
-      <BottomNav />
     </div>
   );
 }

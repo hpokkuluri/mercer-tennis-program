@@ -3,18 +3,16 @@ import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import BottomNav from "../components/BottomNav";
 import { BellIcon, ChevronRightIcon } from "../components/Icons";
-import { isOpenEvent } from "../lib/groups";
 import Logo from "../components/Logo";
+import { alertCount } from "../lib/notifications";
 
 export default function Hub() {
-  const { team, events, profile } = useApp();
+  const { team, events, profile, isAdmin } = useApp();
   const navigate = useNavigate();
 
   const summerEvents = events.filter((e) => e.mode === "summer");
   const winterEvents = events.filter((e) => e.mode === "winter");
-  const myPendingCount = events.filter((e) => e.participants?.[profile.uid]?.status === "pending").length;
-  const myOpenToJoinCount = summerEvents.filter((e) => isOpenEvent(e) && e.status !== "cancelled" && !e.participants?.[profile.uid]).length;
-  const badgeCount = myPendingCount + myOpenToJoinCount;
+  const badgeCount = alertCount(team, events, profile, isAdmin);
 
   const nextOf = (list) => list.find((e) => e.status !== "cancelled");
 

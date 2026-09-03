@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
-import { Header } from "../components/UI";
+import { Header, HomeButton } from "../components/UI";
 import { SendIcon } from "../components/Icons";
 
 export default function Thread() {
@@ -36,7 +36,12 @@ export default function Thread() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <Header
         title={other.name}
-        right={<Avatar initials={other.initials} color={other.color} size={34} />}
+        right={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Avatar initials={other.initials} color={other.color} size={30} />
+            <HomeButton />
+          </div>
+        }
       />
 
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px", display: "flex", flexDirection: "column", gap: 8 }}>

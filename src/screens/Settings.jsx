@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
-import { Header, Card, Field, SectionLabel, PrimaryButton, SecondaryButton, ErrorText } from "../components/UI";
+import { Header, Card, Field, SectionLabel, SecondaryButton, ErrorText } from "../components/UI";
 import { COLORS } from "../lib/identity";
 import { THEMES, getStoredThemeId, applyTheme } from "../lib/themes";
 import { checkForUpdate, hardRefresh } from "../lib/pwaUpdate";

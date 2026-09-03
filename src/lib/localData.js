@@ -322,6 +322,51 @@ export async function reassignInvite(teamId, eventId, fromUid, toUid, toName, to
   writeAll(EVENTS_KEY, all);
 }
 
+// Slot marketplace (Winter only): a player who can't make a game they're
+// on the roster for opens their slot up to the whole team, instead of
+// having to already know who's free to hand it directly to (that's what
+// reassignInvite above is for). Anyone else on the team can then claim
+// it — see claimSlot.
+export async function openSlot(teamId, eventId, uid) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.participants[uid]) return;
+  event.participants[uid] = { ...event.participants[uid], status: "open", openedAt: Date.now() };
+  recomputeStatus(event);
+  writeAll(EVENTS_KEY, all);
+}
+
+export async function claimSlot(teamId, eventId, fromUid, toUid, toName, toInitials, toColor) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.participants[fromUid] || event.participants[fromUid].status !== "open") return;
+  delete event.participants[fromUid];
+  event.participants[toUid] = {
+    uid: toUid,
+    name: toName,
+    initials: toInitials,
+    color: toColor,
+    status: "accepted",
+    claimedFrom: fromUid,
+    joinedAt: Date.now(),
+  };
+  recomputeStatus(event);
+  writeAll(EVENTS_KEY, all);
+}
+
+// Undo an open slot before anyone claims it — the player changed their
+// mind and can play after all. No-ops if it's already been claimed (the
+// participant is no longer "open" by then, so there's nothing to take back).
+export async function closeSlot(teamId, eventId, uid) {
+  const all = readAll(EVENTS_KEY);
+  const event = all[eventId];
+  if (!event || !event.participants[uid] || event.participants[uid].status !== "open") return;
+  const { openedAt: _openedAt, ...rest } = event.participants[uid];
+  event.participants[uid] = { ...rest, status: "accepted" };
+  recomputeStatus(event);
+  writeAll(EVENTS_KEY, all);
+}
+
 export async function cancelEvent(teamId, eventId) {
   const all = readAll(EVENTS_KEY);
   if (!all[eventId]) return;
