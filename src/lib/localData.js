@@ -202,6 +202,34 @@ export async function setSeason(teamId, season) {
   writeAll(TEAMS_KEY, teams);
 }
 
+export async function setRequireSubscription(teamId, value) {
+  const teams = readAll(TEAMS_KEY);
+  if (!teams[teamId]) return;
+  teams[teamId].requireSubscription = !!value;
+  writeAll(TEAMS_KEY, teams);
+}
+
+export async function addPlaceholderMember(teamId, { name, email } = {}) {
+  const clean = (name || "").trim();
+  if (!clean) throw new Error("Enter a name.");
+  const teams = readAll(TEAMS_KEY);
+  const team = teams[teamId];
+  if (!team) throw new Error("Team not found.");
+  const uid = `placeholder_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const member = {
+    uid,
+    name: clean,
+    initials: initialsOf(clean),
+    color: colorFor(uid),
+    email: (email || "").trim().toLowerCase(),
+    isAdmin: false,
+    placeholder: true,
+  };
+  team.members[uid] = member;
+  writeAll(TEAMS_KEY, teams);
+  return member;
+}
+
 export async function setAdmin(teamId, uid, isAdmin) {
   const teams = readAll(TEAMS_KEY);
   const team = teams[teamId];

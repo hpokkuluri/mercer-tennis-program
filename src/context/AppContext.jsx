@@ -136,6 +136,8 @@ export function AppProvider({ children }) {
       }
     },
     inviteMemberByEmail: (email) => db.inviteMemberByEmail(team.id, email, profile.uid, profile.name),
+    setRequireSubscription: (value) => db.setRequireSubscription(team.id, value),
+    addPlaceholderMember: (data) => db.addPlaceholderMember(team.id, data),
     changePassword,
     updateProfile,
     createEvent: (data) => db.createEvent(team.id, data),

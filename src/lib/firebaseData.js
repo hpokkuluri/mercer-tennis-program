@@ -198,6 +198,31 @@ export async function setSeason(teamId, season) {
   await updateDoc(doc(db, "teams", teamId), { season });
 }
 
+// Team-level "Require sign-up to join" switch. Missing on older teams = true.
+export async function setRequireSubscription(teamId, value) {
+  await updateDoc(doc(db, "teams", teamId), { requireSubscription: !!value });
+}
+
+// Add a roster player with no Firebase Auth account (used while
+// requireSubscription is off, e.g. for testing a season before anyone signs
+// up). Synthetic uid; no invite email is sent.
+export async function addPlaceholderMember(teamId, { name, email } = {}) {
+  const clean = (name || "").trim();
+  if (!clean) throw new Error("Enter a name.");
+  const uid = `placeholder_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const member = {
+    uid,
+    name: clean,
+    initials: initialsOf(clean),
+    color: colorFor(uid),
+    email: (email || "").trim().toLowerCase(),
+    isAdmin: false,
+    placeholder: true,
+  };
+  await setDoc(doc(db, "teams", teamId, "members", uid), member);
+  return member;
+}
+
 export async function setAdmin(teamId, uid, isAdmin) {
   await updateDoc(doc(db, "teams", teamId, "members", uid), { isAdmin });
 }

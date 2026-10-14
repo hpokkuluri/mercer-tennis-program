@@ -8,7 +8,7 @@ import { GearIcon, TrashIcon, MailIcon } from "../components/Icons";
 import { sendInviteEmail } from "../lib/email";
 
 export default function Team() {
-  const { team, profile, isAdmin, setAdmin, removeMember, inviteMemberByEmail, subscribeAnnouncements, postAnnouncement } = useApp();
+  const { team, profile, isAdmin, setAdmin, removeMember, inviteMemberByEmail, setRequireSubscription, addPlaceholderMember, subscribeAnnouncements, postAnnouncement } = useApp();
   const navigate = useNavigate();
   const [announcements, setAnnouncements] = useState([]);
   const [text, setText] = useState("");
@@ -17,6 +17,13 @@ export default function Team() {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteNotice, setInviteNotice] = useState("");
   const [removeError, setRemoveError] = useState("");
+
+  // Missing on teams created before this setting existed → treat as Yes.
+  const requireSubscription = team?.requireSubscription !== false;
+  const [phName, setPhName] = useState("");
+  const [phEmail, setPhEmail] = useState("");
+  const [phBusy, setPhBusy] = useState(false);
+  const [phNotice, setPhNotice] = useState("");
 
   useEffect(() => subscribeAnnouncements(setAnnouncements), [team?.id]);
 
@@ -52,6 +59,23 @@ export default function Team() {
       setInviteNotice(err.message || "Couldn't send that invite.");
     } finally {
       setInviteBusy(false);
+    }
+  }
+
+  async function submitPlaceholder(e) {
+    e.preventDefault();
+    if (!phName.trim()) return;
+    setPhBusy(true);
+    setPhNotice("");
+    try {
+      const m = await addPlaceholderMember({ name: phName, email: phEmail });
+      setPhNotice(`${m.name} was added to the roster — no email sent, no login created.`);
+      setPhName("");
+      setPhEmail("");
+    } catch (err) {
+      setPhNotice(err.message || "Couldn't add that player.");
+    } finally {
+      setPhBusy(false);
     }
   }
 
@@ -102,6 +126,35 @@ export default function Team() {
           </div>
         )}
 
+        {isAdmin && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <SectionLabel>Require sign-up to join</SectionLabel>
+            <div data-testid="require-sub-toggle" style={{ display: "flex", gap: 4, padding: 4, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)" }}>
+              <button type="button" onClick={() => setRequireSubscription(true)} style={{ flex: 1, border: "none", borderRadius: "var(--radius-sm)", padding: "8px 0", fontWeight: 700, fontSize: 13, background: requireSubscription ? "var(--accent)" : "transparent", color: requireSubscription ? "var(--accent-text)" : "var(--text-muted)" }}>Yes</button>
+              <button type="button" onClick={() => setRequireSubscription(false)} style={{ flex: 1, border: "none", borderRadius: "var(--radius-sm)", padding: "8px 0", fontWeight: 700, fontSize: 13, background: !requireSubscription ? "var(--accent)" : "transparent", color: !requireSubscription ? "var(--accent-text)" : "var(--text-muted)" }}>No</button>
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+              {requireSubscription
+                ? "Players must create an account (invite by email or team code) to be on the roster."
+                : "You can add players directly with no login — handy for testing a season before anyone signs up. No emails go to players without an email on file."}
+            </div>
+
+            {!requireSubscription && (
+              <form data-testid="placeholder-form" onSubmit={submitPlaceholder} style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Add player (no login yet)</div>
+                <input value={phName} onChange={(e) => setPhName(e.target.value)} placeholder="Name (required)" style={{ flex: 1, minWidth: 0, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, outline: "none", background: "var(--card)" }} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="email" value={phEmail} onChange={(e) => setPhEmail(e.target.value)} placeholder="Email (optional)" style={{ flex: 1, minWidth: 0, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, outline: "none", background: "var(--card)" }} />
+                  <button type="submit" disabled={phBusy || !phName.trim()} className="display" style={{ border: "none", background: "var(--accent)", color: "var(--accent-text)", borderRadius: "var(--radius-md)", padding: "0 16px", fontWeight: 700, fontSize: 13, opacity: phBusy || !phName.trim() ? 0.6 : 1 }}>
+                    {phBusy ? "…" : "Add"}
+                  </button>
+                </div>
+                {phNotice && <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{phNotice}</div>}
+              </form>
+            )}
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <SectionLabel>Roster · {members.length}</SectionLabel>
           {removeError && <div style={{ fontSize: 12.5, color: "var(--red-text)" }}>{removeError}</div>}
@@ -112,12 +165,17 @@ export default function Team() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{m.name}{m.uid === profile.uid ? " (you)" : ""}</div>
                   {m.isAdmin && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green-solid)" }}>Admin</div>}
+                  {m.placeholder && (
+                    <div data-testid="placeholder-tag" style={{ display: "inline-block", marginTop: 3, fontSize: 10.5, fontWeight: 700, color: "oklch(42% 0.11 70)", background: "oklch(93% 0.07 85)", borderRadius: "var(--radius-sm)", padding: "2px 6px" }}>
+                      Not joined yet — no login
+                    </div>
+                  )}
                 </div>
                 {m.uid !== profile.uid && (
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => navigate(`/messages/${m.uid}`)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
+                    {!m.placeholder && <button onClick={() => navigate(`/messages/${m.uid}`)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
                       Message
-                    </button>
+                    </button>}
                     {isAdmin && (
                       <button onClick={() => setAdmin(m.uid, !m.isAdmin)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
                         {m.isAdmin ? "Demote" : "Make admin"}
