@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { Header, Card, SectionLabel, PrimaryButton, SecondaryButton, ErrorText, HomeButton } from "../components/UI";
 import { UploadIcon, WarningIcon, CheckIcon, XIcon } from "../components/Icons";
-import { parseWorkbookRows, buildRowPreview, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
+import { parseWorkbook, buildRowPreview, matchPlayers, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
+import { genVacationId, formatRange } from "../lib/vacations";
 import { sendImportedEventEmail } from "../lib/email";
 
 function downloadTemplate() {
@@ -19,7 +20,7 @@ function downloadTemplate() {
 }
 
 export default function WinterImport() {
-  const { team, events, profile, isAdmin, createEvent } = useApp();
+  const { team, events, profile, isAdmin, createEvent, updateMemberInTeam } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -28,9 +29,35 @@ export default function WinterImport() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState(null); // { created, skipped }
+  const [result, setResult] = useState(null); // { created, skipped, vacations }
+  const [format, setFormat] = useState("list"); // "list" | "grid"
+  const [gridInfo, setGridInfo] = useState(null); // { sheetName, emptySlots, players }
+  const [vacations, setVacations] = useState([]); // grid V marks, matched to roster
+  const [includeVacations, setIncludeVacations] = useState(true);
+  const [markConfirmed, setMarkConfirmed] = useState(true);
+  const [emailPlayers, setEmailPlayers] = useState(true);
 
   const members = Object.values(team?.members || {});
+
+  function loadParsed(parsed) {
+    setFormat(parsed.format);
+    if (parsed.format === "grid") {
+      setGridInfo({ sheetName: parsed.sheetName, emptySlots: parsed.emptySlots, players: parsed.players });
+      setVacations(
+        parsed.vacations.map((v) => {
+          const { matched } = matchPlayers(v.name, members);
+          return { ...v, member: matched[0] || null };
+        })
+      );
+      setMarkConfirmed(true);
+      setEmailPlayers(false); // a whole season at once — don't send dozens of emails per player
+    } else {
+      setGridInfo(null);
+      setVacations([]);
+      setEmailPlayers(true);
+    }
+    loadRows(parsed.rows);
+  }
 
   function loadRows(rawRows) {
     const preview = rawRows.map((r) => {
@@ -50,8 +77,7 @@ export default function WinterImport() {
     setBusy(true);
     try {
       const buf = await file.arrayBuffer();
-      const parsed = parseWorkbookRows(buf, { isCsv: false });
-      loadRows(parsed);
+      loadParsed(parseWorkbook(buf, { isCsv: false }));
     } catch {
       setError("Couldn't read that file — make sure it's a .xlsx or .csv export.");
     } finally {
@@ -75,8 +101,7 @@ export default function WinterImport() {
         };
         return setError(messages[res.reason] || "Couldn't fetch that sheet — try again in a moment.");
       }
-      const parsed = parseWorkbookRows(res.csv, { isCsv: true });
-      loadRows(parsed);
+      loadParsed(parseWorkbook(res.csv, { isCsv: true }));
     } catch {
       setError("Couldn't fetch that sheet — try again in a moment.");
     } finally {
@@ -90,15 +115,19 @@ export default function WinterImport() {
 
   async function confirmImport() {
     const toImport = rows.filter((r) => r.included && r.valid);
-    if (toImport.length === 0) return setError("Nothing selected to import.");
+    const vacToAdd = format === "grid" && includeVacations ? vacations.filter((v) => v.member) : [];
+    if (toImport.length === 0 && vacToAdd.length === 0) return setError("Nothing selected to import.");
     setImporting(true);
     setError("");
     let created = 0;
     for (const row of toImport) {
       try {
         const participants = {};
+        const playedSet = new Set((row.playedNames || []).map((n) => n.toLowerCase()));
         row.matched.forEach((m) => {
-          participants[m.uid] = { uid: m.uid, name: m.name, initials: m.initials, color: m.color, status: "pending" };
+          const playedMark = format === "grid" && [...playedSet].some((n) => matchPlayers(n, [m]).matched.length > 0);
+          const status = format === "grid" && (markConfirmed || playedMark) ? "accepted" : "pending";
+          participants[m.uid] = { uid: m.uid, name: m.name, initials: m.initials, color: m.color, status };
         });
         await createEvent({
           type: /\bvs\b/i.test(row.title) ? "match" : "practice",
@@ -107,7 +136,7 @@ export default function WinterImport() {
           startTime: row.startTime,
           endTime: row.endTime || row.startTime,
           location: row.location,
-          note: "",
+          note: row.note || "",
           mode: "winter",
           organizerId: profile.uid,
           organizerName: profile.name,
@@ -115,7 +144,7 @@ export default function WinterImport() {
         });
         created += 1;
         const emailRecipients = row.matched.filter((m) => m.email && m.uid !== profile.uid).map((m) => ({ email: m.email, name: m.name }));
-        if (emailRecipients.length > 0) {
+        if (emailPlayers && emailRecipients.length > 0) {
           sendImportedEventEmail({
             recipients: emailRecipients,
             teamName: team?.name,
@@ -131,7 +160,19 @@ export default function WinterImport() {
         // keep going — report what succeeded
       }
     }
-    setResult({ created, skipped: rows.length - toImport.length });
+    let vacationsAdded = 0;
+    for (const v of vacToAdd) {
+      try {
+        const existing = team.members[v.member.uid]?.vacations || [];
+        const fresh = v.ranges.filter((rg) => !existing.some((e) => e.start === rg.start && e.end === rg.end));
+        if (fresh.length === 0) continue;
+        await updateMemberInTeam(v.member.uid, { vacations: [...existing, ...fresh.map((rg) => ({ id: genVacationId(), ...rg }))] });
+        vacationsAdded += fresh.length;
+      } catch {
+        // keep going
+      }
+    }
+    setResult({ created, skipped: rows.length - toImport.length, vacations: vacationsAdded, emailed: emailPlayers });
     setRows([]);
     setImporting(false);
   }
@@ -159,7 +200,8 @@ export default function WinterImport() {
               Created {result.created} game{result.created === 1 ? "" : "s"}
             </div>
             {result.skipped > 0 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{result.skipped} row{result.skipped === 1 ? "" : "s"} skipped.</div>}
-            <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Assigned players have been emailed and can accept or decline from the Winter Schedule.</div>
+            {result.vacations > 0 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Added {result.vacations} vacation range{result.vacations === 1 ? "" : "s"}.</div>}
+            <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{result.emailed ? "Assigned players with an email on file have been emailed." : "No emails were sent."}</div>
             <div style={{ display: "flex", gap: 10, width: "100%", marginTop: 8 }}>
               <SecondaryButton onClick={() => navigate("/winter")}>View Winter Schedule</SecondaryButton>
               <SecondaryButton onClick={() => setResult(null)}>Import More</SecondaryButton>
@@ -170,7 +212,7 @@ export default function WinterImport() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <SectionLabel>Upload a file</SectionLabel>
               <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>
-                An .xlsx or .csv with columns: Date, Start Time, End Time, Location, Title, Players (names or emails, separated by commas or semicolons).
+                An .xlsx or .csv with columns: Date, Start Time, End Time, Location, Title, Players (names or emails, separated by commas or semicolons) — or the season grid (Day / Time / Date rows, one column per player; a name = scheduled, 1 = played, V = vacation).
               </div>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: "none" }} id="import-file-input" />
               <div style={{ display: "flex", gap: 10 }}>
@@ -198,6 +240,47 @@ export default function WinterImport() {
             </div>
 
             <ErrorText>{error}</ErrorText>
+
+            {format === "grid" && gridInfo && (rows.length > 0 || vacations.length > 0) && (
+              <Card data-testid="grid-summary" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700 }}>Season grid detected — sheet "{gridInfo.sheetName}"</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {gridInfo.players.length} player columns: {gridInfo.players.join(", ")}. {gridInfo.emptySlots > 0 ? `${gridInfo.emptySlots} empty court slot${gridInfo.emptySlots === 1 ? "" : "s"} skipped.` : ""}
+                </div>
+                {(() => {
+                  const missing = gridInfo.players.filter((n) => matchPlayers(n, members).matched.length === 0);
+                  return missing.length > 0 ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--amber-text)" }}>
+                      <WarningIcon width={12} height={12} /> Not on the roster: {missing.join(", ")} — add them on the Team screen (names must match) and re-load the file.
+                    </div>
+                  ) : null;
+                })()}
+                <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
+                  <input type="checkbox" checked={markConfirmed} onChange={(e) => setMarkConfirmed(e.target.checked)} />
+                  <span>Schedule already agreed — mark every assigned player as confirmed (unticked: only "1" cells are confirmed, the rest must accept in the app)</span>
+                </label>
+                <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
+                  <input type="checkbox" checked={emailPlayers} onChange={(e) => setEmailPlayers(e.target.checked)} />
+                  <span>Email players about each game (one email per game)</span>
+                </label>
+                {vacations.length > 0 && (
+                  <>
+                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
+                      <input data-testid="include-vacations" type="checkbox" checked={includeVacations} onChange={(e) => setIncludeVacations(e.target.checked)} />
+                      <span>Add "V" days as Vacation Days</span>
+                    </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 24 }}>
+                      {vacations.map((v) => (
+                        <div key={v.name} data-testid="vacation-row" style={{ fontSize: 12, color: v.member ? "var(--text-muted)" : "var(--amber-text)" }}>
+                          <b>{v.member ? v.member.name : v.name}</b>: {v.ranges.map((rg) => formatRange(rg.start, rg.end)).join(", ")}
+                          {!v.member && " — not on roster, skipped"}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </Card>
+            )}
 
             {rows.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -232,7 +315,10 @@ export default function WinterImport() {
                         )}
                       </div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                        {row.matched.length > 0 ? row.matched.map((m) => m.name.split(" ")[0]).join(", ") : "No players matched"}
+                        {row.matched.length > 0
+                          ? row.matched.map((m) => m.name.split(" ")[0] + ((row.playedNames || []).some((n) => matchPlayers(n, [m]).matched.length > 0) ? " ✓" : "")).join(", ")
+                          : "No players matched"}
+                        {row.note ? ` · ${row.note}` : ""}
                       </div>
                       {row.unmatched.length > 0 && (
                         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--amber-text)" }}>
@@ -253,7 +339,7 @@ export default function WinterImport() {
                   ))}
                 </div>
 
-                <PrimaryButton type="button" onClick={confirmImport} disabled={importing || rows.filter((r) => r.included && r.valid).length === 0}>
+                <PrimaryButton type="button" onClick={confirmImport} disabled={importing || (rows.filter((r) => r.included && r.valid).length === 0 && !(format === "grid" && includeVacations && vacations.some((v) => v.member)))}>
                   {importing ? "Importing…" : `Import ${rows.filter((r) => r.included && r.valid).length} Game${rows.filter((r) => r.included && r.valid).length === 1 ? "" : "s"}`}
                 </PrimaryButton>
               </div>

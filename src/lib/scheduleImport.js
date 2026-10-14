@@ -188,3 +188,179 @@ export function templateCSV() {
     "2026-12-12,18:00,19:30,Riverside Courts · Court 1,Doubles Drills,alex@example.com; priya@example.com",
   ].join("\n");
 }
+
+// ---------------------------------------------------------------------
+// Season-grid format (Hari's TennisSchedule.xlsx layout)
+//
+//   one row per court slot:  Wk | Day (SAT / SUN1 / SUN2) | Time (900) | Date | <player cols…>
+//   one column per player:   header row holds the player names (SIVA, RAO, …)
+//   cell values:             a name  -> scheduled for that slot
+//                            1       -> scheduled and already played
+//                            V       -> on vacation that day
+//                            blank   -> not playing
+//
+// Summary rows above the slots (ENTITLED / PLAYED / PSC …) are ignored.
+// Detected automatically — the list format above still works unchanged.
+// ---------------------------------------------------------------------
+
+const DAY_RE = /^(SAT|SUN|MON|TUE|WED|THU|FRI)[A-Z]*\s*(\d*)$/i;
+const DAY_NAMES = { SAT: "Saturday", SUN: "Sunday", MON: "Monday", TUE: "Tuesday", WED: "Wednesday", THU: "Thursday", FRI: "Friday" };
+const NAME_RE = /^[A-Za-z][A-Za-z .'-]*$/;
+const GRID_GAME_MINUTES = 120;
+
+function gridDate(v) {
+  if (typeof v === "number" && v < 20000) return ""; // a plain number (time, count), not a date serial
+  return toISODate(v);
+}
+
+// 900 -> 09:00, 1830 -> 18:30; also accepts "9:00", "9:00 AM", Excel time fractions.
+export function gridTime(v) {
+  if (v === "" || v == null) return "";
+  const s = String(v).trim();
+  if (/^\d{3,4}$/.test(s)) {
+    const n = parseInt(s, 10);
+    const h = Math.floor(n / 100);
+    const m = n % 100;
+    if (h < 24 && m < 60) return `${pad2(h)}:${pad2(m)}`;
+  }
+  return toHHMM(v);
+}
+
+function addMinutes(hhmm, mins) {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  const t = Math.min(h * 60 + m + mins, 23 * 60 + 59);
+  return `${pad2(Math.floor(t / 60))}:${pad2(t % 60)}`;
+}
+
+export function slotTitle(dayRaw) {
+  const m = String(dayRaw).trim().match(DAY_RE);
+  if (!m) return String(dayRaw).trim();
+  const day = DAY_NAMES[m[1].toUpperCase()] || m[1];
+  return m[2] ? `${day} · Court ${m[2]}` : `${day} · Court`;
+}
+
+function mostCommon(nums) {
+  const counts = new Map();
+  nums.forEach((n) => counts.set(n, (counts.get(n) || 0) + 1));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+// Returns null when the sheet doesn't look like a season grid.
+export function parseScheduleGrid(aoa) {
+  const hits = [];
+  aoa.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) {
+      if (!DAY_RE.test(String(row[c]).trim())) continue;
+      for (let d = c + 1; d <= c + 3 && d < row.length; d++) {
+        if (gridDate(row[d])) {
+          hits.push({ r, dayCol: c, dateCol: d });
+          return;
+        }
+      }
+    }
+  });
+  if (hits.length < 2) return null;
+  const dayCol = mostCommon(hits.map((h) => h.dayCol));
+  const dateCol = mostCommon(hits.map((h) => h.dateCol));
+  const timeCol = dateCol - dayCol > 1 ? dayCol + 1 : -1;
+  const weekCol = dayCol > 0 ? dayCol - 1 : -1;
+  const dataRows = hits.filter((h) => h.dayCol === dayCol && h.dateCol === dateCol).map((h) => h.r);
+  const firstData = dataRows[0];
+
+  // Header = the row above the slots with the most name-like cells in player columns.
+  let headerRow = -1;
+  let best = 0;
+  for (let r = 0; r < firstData; r++) {
+    const row = aoa[r] || [];
+    let n = 0;
+    for (let c = dateCol + 1; c < row.length; c++) if (NAME_RE.test(String(row[c]).trim())) n++;
+    if (n > best) {
+      best = n;
+      headerRow = r;
+    }
+  }
+  if (headerRow < 0 || best < 1) return null;
+  const players = [];
+  (aoa[headerRow] || []).forEach((v, c) => {
+    const name = String(v).trim();
+    if (c > dateCol && NAME_RE.test(name)) players.push({ col: c, name });
+  });
+
+  const rows = [];
+  const vacationDates = new Map(); // name -> Set(date)
+  const assignedDates = new Map(); // name -> Set(date)
+  let emptySlots = 0;
+  for (const r of dataRows) {
+    const row = aoa[r];
+    const date = gridDate(row[dateCol]);
+    const startTime = timeCol >= 0 ? gridTime(row[timeCol]) : "";
+    const scheduled = [];
+    const played = [];
+    for (const p of players) {
+      const raw = String(row[p.col] ?? "").trim();
+      if (!raw) continue;
+      const up = raw.toUpperCase();
+      if (up === "V" || up === "VAC" || up === "VACATION") {
+        if (!vacationDates.has(p.name)) vacationDates.set(p.name, new Set());
+        vacationDates.get(p.name).add(date);
+        continue;
+      }
+      scheduled.push(p.name);
+      if (/^(1|X|✓|✔|Y|P)$/i.test(raw)) played.push(p.name);
+      if (!assignedDates.has(p.name)) assignedDates.set(p.name, new Set());
+      assignedDates.get(p.name).add(date);
+    }
+    if (scheduled.length === 0) {
+      emptySlots++;
+      continue;
+    }
+    const wk = weekCol >= 0 ? String(row[weekCol]).trim() : "";
+    rows.push({
+      date,
+      startTime,
+      endTime: addMinutes(startTime, GRID_GAME_MINUTES),
+      location: "",
+      title: slotTitle(row[dayCol]),
+      playersRaw: scheduled.join(", "),
+      playedNames: played,
+      note: wk && /^\d+$/.test(wk) ? `Week ${wk}` : "",
+    });
+  }
+
+  // Collapse each player's V dates into ranges. Neighbouring V dates (≤ 7 days apart) merge into one
+  // range unless that player is scheduled to play somewhere in between.
+  const vacations = [];
+  for (const [name, set] of vacationDates) {
+    const dates = [...set].filter(Boolean).sort();
+    const busy = [...(assignedDates.get(name) || [])];
+    let cur = null;
+    const ranges = [];
+    for (const d of dates) {
+      const gap = cur ? (new Date(d) - new Date(cur.end)) / 86400000 : Infinity;
+      const blocked = cur && busy.some((b) => b > cur.end && b < d);
+      if (cur && gap <= 7 && !blocked) cur.end = d;
+      else {
+        cur = { start: d, end: d };
+        ranges.push(cur);
+      }
+    }
+    vacations.push({ name, ranges, days: dates.length });
+  }
+
+  return { rows, vacations, players: players.map((p) => p.name), emptySlots };
+}
+
+// One entry point for both formats. Tries every sheet for the season grid
+// (first sheet first), otherwise falls back to the column-list format.
+export function parseWorkbook(data, { isCsv = false } = {}) {
+  const wb = isCsv ? XLSX.read(data, { type: "string" }) : XLSX.read(data, { type: "array" });
+  for (const name of wb.SheetNames) {
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "", raw: true, blankrows: true });
+    const grid = parseScheduleGrid(aoa);
+    if (grid && grid.rows.length > 0) return { format: "grid", sheetName: name, ...grid };
+  }
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  return { format: "list", sheetName: wb.SheetNames[0], rows: raw.map(normalizeRow).filter((r) => r.date || r.title || r.playersRaw), vacations: [] };
+}
