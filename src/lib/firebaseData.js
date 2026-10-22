@@ -201,6 +201,11 @@ export async function setSeason(teamId, season) {
 
 // Team-level "Require sign-up to join" switch. Missing on older teams = true.
 // Court-cost split (More → Payments) — see src/lib/payments.js.
+// Saved setup for the season planner (Winter Schedule → Plan).
+export async function setSchedulerSetup(teamId, scheduler) {
+  await updateDoc(doc(db, "teams", teamId), { scheduler });
+}
+
 export async function setPayments(teamId, payments) {
   await updateDoc(doc(db, "teams", teamId), { payments });
 }

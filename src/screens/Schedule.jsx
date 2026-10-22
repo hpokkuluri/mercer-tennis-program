@@ -47,6 +47,15 @@ export default function Schedule({ season }) {
               Import
             </button>
           )}
+          {canImport && (
+            <button
+              data-testid="plan-btn"
+              onClick={() => navigate("/winter/plan")}
+              style={{ display: "flex", alignItems: "center", gap: 5, height: 36, padding: "0 12px", borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", fontSize: 12.5, fontWeight: 700, color: "var(--text)" }}
+            >
+              ✨ Plan
+            </button>
+          )}
           <Avatar initials={profile.initials} color={profile.color} size={38} />
         </div>
       </div>

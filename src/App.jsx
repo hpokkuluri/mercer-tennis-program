@@ -25,6 +25,7 @@ const GameLedger = lazy(() => import("./screens/GameLedger"));
 const Payments = lazy(() => import("./screens/Payments"));
 const SlotMarketplace = lazy(() => import("./screens/SlotMarketplace"));
 const WinterImport = lazy(() => import("./screens/WinterImport"));
+const SeasonPlanner = lazy(() => import("./screens/SeasonPlanner"));
 
 function RouteLoading() {
   return (
@@ -62,6 +63,7 @@ function Gate() {
         <Route path="/winter" element={<Schedule season="winter" />} />
         <Route path="/propose/:season" element={<Propose />} />
         <Route path="/winter/import" element={<WinterImport />} />
+        <Route path="/winter/plan" element={<SeasonPlanner />} />
         <Route path="/event/:id" element={<EventDetail />} />
         <Route path="/team" element={<Team />} />
         <Route path="/more" element={<More />} />
