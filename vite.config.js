@@ -25,6 +25,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
+        // pdf.js is only needed by admins importing a PDF schedule — fetch it on demand, don't precache it on every phone.
+        globIgnores: ["**/pdf-*.js", "**/pdf.worker*"],
       },
     }),
   ],

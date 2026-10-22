@@ -3,9 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { Header, Card, SectionLabel, PrimaryButton, SecondaryButton, ErrorText, HomeButton } from "../components/UI";
 import { UploadIcon, WarningIcon, CheckIcon, XIcon } from "../components/Icons";
-import { parseWorkbook, buildRowPreview, matchPlayers, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
+import { parseWorkbook, parseGridFromAoa, fromDate, buildRowPreview, matchPlayers, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
 import { genVacationId, formatRange } from "../lib/vacations";
 import { sendImportedEventEmail } from "../lib/email";
+
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function downloadTemplate() {
   const blob = new Blob([templateCSV()], { type: "text/csv" });
@@ -36,10 +41,23 @@ export default function WinterImport() {
   const [includeVacations, setIncludeVacations] = useState(true);
   const [markConfirmed, setMarkConfirmed] = useState(true);
   const [emailPlayers, setEmailPlayers] = useState(true);
+  const [rawParsed, setRawParsed] = useState(null); // whole file, before the from-today filter
+  const [fromToday, setFromToday] = useState(true);
+  const [pastSkipped, setPastSkipped] = useState(0);
 
   const members = Object.values(team?.members || {});
 
   function loadParsed(parsed) {
+    setRawParsed(parsed);
+    setFromToday(true);
+    showParsed(parsed, true);
+  }
+
+  // Grid files usually cover a whole season; by default start from today
+  // so weeks already played aren't re-created as games.
+  function showParsed(full, onlyUpcoming) {
+    const parsed = full.format === "grid" && onlyUpcoming ? fromDate(full, localToday()) : { ...full, pastSkipped: 0 };
+    setPastSkipped(parsed.pastSkipped || 0);
     setFormat(parsed.format);
     if (parsed.format === "grid") {
       setGridInfo({ sheetName: parsed.sheetName, emptySlots: parsed.emptySlots, players: parsed.players });
@@ -56,17 +74,18 @@ export default function WinterImport() {
       setVacations([]);
       setEmailPlayers(true);
     }
-    loadRows(parsed.rows);
+    loadRows(parsed.rows, parsed.format === "grid" && onlyUpcoming);
   }
 
-  function loadRows(rawRows) {
+  function loadRows(rawRows, upcomingOnly = false) {
     const preview = rawRows.map((r) => {
       const p = buildRowPreview(r, members, events);
       return { ...p, included: p.valid && !p.duplicate };
     });
     setRows(preview);
     setResult(null);
-    if (preview.length === 0) setError("No rows found — check the file matches the expected columns (see the template).");
+    if (preview.length === 0 && upcomingOnly) setError("No upcoming games in this file — untick \"Start from today\" to see the earlier weeks.");
+    else if (preview.length === 0) setError("No rows found — check the file matches the expected columns (see the template).");
     else setError("");
   }
 
@@ -77,9 +96,27 @@ export default function WinterImport() {
     setBusy(true);
     try {
       const buf = await file.arrayBuffer();
+      if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+        const { readPdfAoa } = await import("../lib/pdfGrid");
+        const res = await readPdfAoa(buf);
+        if (!res.ok) {
+          setRows([]);
+          setRawParsed(null);
+          return setError(
+            "This PDF has no readable text — it was saved as a picture (e.g. printed from a phone or a screenshot). In Excel use File → Save As → PDF, or just upload the .xlsx itself."
+          );
+        }
+        const grid = parseGridFromAoa(res.aoa, file.name);
+        if (!grid) {
+          setRows([]);
+          setRawParsed(null);
+          return setError("Couldn't find the schedule grid in that PDF (rows of Day / Time / Date with a column per player). Try uploading the .xlsx instead.");
+        }
+        return loadParsed(grid);
+      }
       loadParsed(parseWorkbook(buf, { isCsv: false }));
     } catch {
-      setError("Couldn't read that file — make sure it's a .xlsx or .csv export.");
+      setError("Couldn't read that file — make sure it's a .xlsx, .csv or .pdf export.");
     } finally {
       setBusy(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -126,7 +163,8 @@ export default function WinterImport() {
         const playedSet = new Set((row.playedNames || []).map((n) => n.toLowerCase()));
         row.matched.forEach((m) => {
           const playedMark = format === "grid" && [...playedSet].some((n) => matchPlayers(n, [m]).matched.length > 0);
-          const status = format === "grid" && (markConfirmed || playedMark) ? "accepted" : "pending";
+          const noShowMark = format === "grid" && (row.noShowNames || []).some((n) => matchPlayers(n, [m]).matched.length > 0);
+          const status = noShowMark ? "declined" : format === "grid" && (markConfirmed || playedMark) ? "accepted" : "pending";
           participants[m.uid] = { uid: m.uid, name: m.name, initials: m.initials, color: m.color, status };
         });
         await createEvent({
@@ -212,9 +250,9 @@ export default function WinterImport() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <SectionLabel>Upload a file</SectionLabel>
               <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>
-                An .xlsx or .csv with columns: Date, Start Time, End Time, Location, Title, Players (names or emails, separated by commas or semicolons) — or the season grid (Day / Time / Date rows, one column per player; a name = scheduled, 1 = played, V = vacation).
+                An .xlsx or .csv with columns: Date, Start Time, End Time, Location, Title, Players (names or emails, separated by commas or semicolons) — or the season grid as .xlsx or .pdf (Day / Time / Date rows, one column per player; a name = scheduled, 1 = played, 0 = no show, X = exchanged, V = vacation).
               </div>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: "none" }} id="import-file-input" />
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.pdf,application/pdf" onChange={handleFile} style={{ display: "none" }} id="import-file-input" />
               <div style={{ display: "flex", gap: 10 }}>
                 <SecondaryButton type="button" onClick={() => fileInputRef.current?.click()} disabled={busy} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <UploadIcon /> {busy ? "Reading…" : "Choose File"}
@@ -241,7 +279,7 @@ export default function WinterImport() {
 
             <ErrorText>{error}</ErrorText>
 
-            {format === "grid" && gridInfo && (rows.length > 0 || vacations.length > 0) && (
+            {format === "grid" && gridInfo && rawParsed && (
               <Card data-testid="grid-summary" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>Season grid detected — sheet "{gridInfo.sheetName}"</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -255,6 +293,21 @@ export default function WinterImport() {
                     </div>
                   ) : null;
                 })()}
+                <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
+                  <input
+                    data-testid="from-today"
+                    type="checkbox"
+                    checked={fromToday}
+                    onChange={(e) => {
+                      setFromToday(e.target.checked);
+                      if (rawParsed) showParsed(rawParsed, e.target.checked);
+                    }}
+                  />
+                  <span>
+                    Start from today — skip weeks already played
+                    {fromToday && pastSkipped > 0 ? ` (${pastSkipped} past slot${pastSkipped === 1 ? "" : "s"} left out)` : ""}
+                  </span>
+                </label>
                 <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
                   <input type="checkbox" checked={markConfirmed} onChange={(e) => setMarkConfirmed(e.target.checked)} />
                   <span>Schedule already agreed — mark every assigned player as confirmed (unticked: only "1" cells are confirmed, the rest must accept in the app)</span>
