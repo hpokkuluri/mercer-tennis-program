@@ -12,6 +12,91 @@ function localToday() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Admin-only "start over": permanently deletes Winter games (upcoming only,
+// or the whole season), optionally clearing everyone's vacation days too.
+// Needs DELETE typed to confirm, since nothing here can be undone.
+function ClearWinter({ events, team, deleteEvents, updateMemberInTeam }) {
+  const [scope, setScope] = useState("upcoming");
+  const [clearVacations, setClearVacations] = useState(false);
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const today = localToday();
+  const winter = events.filter((e) => e.mode === "winter");
+  const targets = scope === "all" ? winter : winter.filter((e) => e.date >= today);
+  const vacCount = Object.values(team?.members || {}).reduce((n, m) => n + (m.vacations?.length || 0), 0);
+  const nothing = targets.length === 0 && !(clearVacations && vacCount > 0);
+
+  async function run() {
+    if (confirm.trim().toUpperCase() !== "DELETE" || nothing) return;
+    setBusy(true);
+    setDone("");
+    try {
+      const n = targets.length;
+      if (n > 0) await deleteEvents(targets.map((e) => e.id));
+      let v = 0;
+      if (clearVacations) {
+        for (const m of Object.values(team?.members || {})) {
+          if (m.vacations?.length) {
+            v += m.vacations.length;
+            await updateMemberInTeam(m.uid, { vacations: [] });
+          }
+        }
+      }
+      setDone(`Deleted ${n} game${n === 1 ? "" : "s"}${clearVacations ? ` and ${v} vacation range${v === 1 ? "" : "s"}` : ""}.`);
+      setConfirm("");
+    } catch (err) {
+      setDone(err.message || "Couldn't delete — check that you're still an admin.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const radio = (value, label) => (
+    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
+      <input type="radio" name="clear-scope" checked={scope === value} onChange={() => setScope(value)} />
+      <span>{label}</span>
+    </label>
+  );
+
+  return (
+    <div data-testid="clear-winter" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+      <SectionLabel>Clear Winter schedule</SectionLabel>
+      <Card style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10, borderColor: "var(--red-bg)" }}>
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+          Permanently deletes Winter games so you can import again from scratch. Summer games aren't touched. This can't be undone.
+        </div>
+        {radio("upcoming", `Upcoming games only — from today (${winter.filter((e) => e.date >= today).length})`)}
+        {radio("all", `All Winter games, including past (${winter.length})`)}
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
+          <input data-testid="clear-vacations" type="checkbox" checked={clearVacations} onChange={(e) => setClearVacations(e.target.checked)} />
+          <span>Also clear everyone's Vacation Days ({vacCount} range{vacCount === 1 ? "" : "s"})</span>
+        </label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            data-testid="clear-confirm"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder='Type DELETE to confirm'
+            style={{ flex: 1, minWidth: 0, border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: 13.5, outline: "none", background: "var(--card)" }}
+          />
+          <button
+            type="button"
+            data-testid="clear-run"
+            onClick={run}
+            disabled={busy || nothing || confirm.trim().toUpperCase() !== "DELETE"}
+            className="display"
+            style={{ border: "none", borderRadius: "var(--radius-md)", padding: "0 14px", fontWeight: 700, fontSize: 13, background: "var(--red-text)", color: "white", opacity: busy || nothing || confirm.trim().toUpperCase() !== "DELETE" ? 0.45 : 1 }}
+          >
+            {busy ? "Deleting…" : `Delete ${targets.length}`}
+          </button>
+        </div>
+        {done && <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{done}</div>}
+      </Card>
+    </div>
+  );
+}
+
 function downloadTemplate() {
   const blob = new Blob([templateCSV()], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -25,7 +110,7 @@ function downloadTemplate() {
 }
 
 export default function WinterImport() {
-  const { team, events, profile, isAdmin, createEvent, updateMemberInTeam, mergeParticipants } = useApp();
+  const { team, events, profile, isAdmin, createEvent, updateMemberInTeam, mergeParticipants, deleteEvents } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -214,6 +299,7 @@ export default function WinterImport() {
           endTime: row.endTime || row.startTime,
           location: row.location,
           note: row.note || "",
+          source: "import",
           mode: "winter",
           organizerId: profile.uid,
           organizerName: profile.name,
@@ -479,6 +565,8 @@ export default function WinterImport() {
                 </PrimaryButton>
               </div>
             )}
+
+            {rows.length === 0 && <ClearWinter events={events} team={team} deleteEvents={deleteEvents} updateMemberInTeam={updateMemberInTeam} />}
           </>
         )}
       </div>

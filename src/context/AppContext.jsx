@@ -166,6 +166,7 @@ export function AppProvider({ children }) {
       }
     },
     cancelEvent: (eventId) => db.cancelEvent(team.id, eventId),
+    deleteEvents: (eventIds) => db.deleteEvents(team.id, eventIds),
     addParticipants: async (eventId, uids) => {
       const event = events.find((e) => e.id === eventId);
       const newParticipants = {};

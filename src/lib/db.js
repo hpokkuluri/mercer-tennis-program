@@ -48,6 +48,7 @@ export const openSlot = (...a) => backend.openSlot(...a);
 export const claimSlot = (...a) => backend.claimSlot(...a);
 export const closeSlot = (...a) => backend.closeSlot(...a);
 export const cancelEvent = (...a) => backend.cancelEvent(...a);
+export const deleteEvents = (...a) => backend.deleteEvents(...a);
 export const addParticipants = (...a) => backend.addParticipants(...a);
 export const joinEvent = (...a) => backend.joinEvent(...a);
 export const withdrawFromEvent = (...a) => backend.withdrawFromEvent(...a);

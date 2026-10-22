@@ -395,6 +395,12 @@ export async function closeSlot(teamId, eventId, uid) {
   writeAll(EVENTS_KEY, all);
 }
 
+export async function deleteEvents(teamId, eventIds) {
+  const all = readAll(EVENTS_KEY);
+  eventIds.forEach((id) => delete all[id]);
+  writeAll(EVENTS_KEY, all);
+}
+
 export async function cancelEvent(teamId, eventId) {
   const all = readAll(EVENTS_KEY);
   if (!all[eventId]) return;

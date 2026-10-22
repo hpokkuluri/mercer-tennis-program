@@ -20,6 +20,7 @@ import {
   onSnapshot,
   serverTimestamp,
   deleteField,
+  writeBatch,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -351,6 +352,16 @@ export async function closeSlot(teamId, eventId, uid) {
   const { openedAt: _openedAt, ...rest } = participants[uid];
   participants[uid] = { ...rest, status: "accepted" };
   await updateDoc(ref, { participants, status: recomputeStatus({ ...snap.data(), participants }) });
+}
+
+// Permanently removes games (admin only — see firestore.rules). Batched
+// because a season is ~70 games; Firestore allows 500 writes per batch.
+export async function deleteEvents(teamId, eventIds) {
+  for (let i = 0; i < eventIds.length; i += 400) {
+    const batch = writeBatch(db);
+    eventIds.slice(i, i + 400).forEach((id) => batch.delete(doc(db, "teams", teamId, "events", id)));
+    await batch.commit();
+  }
 }
 
 export async function cancelEvent(teamId, eventId) {
