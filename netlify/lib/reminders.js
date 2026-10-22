@@ -50,7 +50,9 @@ function lineup(e) {
 }
 
 // team: { name, members: {uid: {uid,name,email,isAdmin}} }, events: winter events in the window.
-// Returns [{ to: [emails], subject, text }].
+// Returns [{ to: [emails], subject, text, uid?, push? }] — player messages
+// carry the uid and a short phone-notification version; `to` is empty for
+// a player with no email (they can still get the notification).
 export function buildReminders({ team, events, appUrl, kind }) {
   const games = events
     .filter((e) => e.mode === "winter" && e.status !== "cancelled")
@@ -61,7 +63,6 @@ export function buildReminders({ team, events, appUrl, kind }) {
 
   // 1. Each player: their own games (confirmed or still pending), with the lineup.
   for (const m of members) {
-    if (!m.email) continue;
     const mine = games.filter((e) => {
       const p = e.participants?.[m.uid];
       return p && (p.status === "accepted" || p.status === "pending");
@@ -73,7 +74,14 @@ export function buildReminders({ team, events, appUrl, kind }) {
       return `• ${gameLine(e)}\n  With: ${lineup(e)}${me.status === "pending" ? "\n  You haven't confirmed this one yet — please accept or decline in the app." : ""}`;
     });
     out.push({
-      to: [m.email],
+      uid: m.uid,
+      push: {
+        title: kind === "fri" ? "Tennis this weekend 🎾" : "Weekend tennis reminder 🎾",
+        body: mine.map((e) => `${pretty(e.date)}${e.startTime ? ` ${hhmm12(e.startTime)}` : ""} · ${e.title}${e.participants[m.uid].status === "pending" ? " (please confirm)" : ""}`).join("\n"),
+        url: mine.length === 1 ? `/#/event/${mine[0].id}` : "/#/ledger",
+        tag: `reminder-${kind}`,
+      },
+      to: m.email ? [m.email] : [],
       subject: `Reminder: your tennis this weekend — ${mine.map((e) => pretty(e.date)).join(", ")}`,
       text: `Hi ${first},\n\n${kind === "fri" ? "See you on court!" : "Heads-up for the weekend."} You're playing:\n\n${blocks.join("\n\n")}\n\nCan't make it? Open your spot to the team from the game's page so someone can take it: ${appUrl}\n\n— Mercer Tennis Program`,
     });

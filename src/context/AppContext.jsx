@@ -3,6 +3,7 @@ import { initials as initialsOf, colorFor } from "../lib/identity";
 import * as db from "../lib/db";
 import { sendJoinedEmail, sendRemovedEmail, sendAddedToEventEmail, sendVacationConflictEmail, sendSlotClaimedEmail, sendSlotOpenedEmail, sendSlotTakenEmail } from "../lib/email";
 import { genVacationId, conflictsForRange } from "../lib/vacations";
+import { notify } from "../lib/push";
 
 const Ctx = createContext(null);
 
@@ -113,6 +114,10 @@ export function AppProvider({ children }) {
 
   const isAdmin = Boolean(team?.members?.[profile?.uid]?.isAdmin);
 
+  const teamUids = (excludeUids = []) => Object.keys(team?.members || {}).filter((u) => !excludeUids.includes(u));
+  const shortWhen = (e) =>
+    `${new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${e.startTime ? ` ${e.startTime}` : ""}`;
+
   // Every teammate's email (players without one are simply skipped), minus the given uids.
   const teamEmails = (excludeUids = []) =>
     Object.values(team?.members || {})
@@ -163,6 +168,14 @@ export function AppProvider({ children }) {
       const who = uid === profile.uid ? profile : team.members?.[uid];
       await db.openSlot(team.id, eventId, uid);
       if (event) {
+        notify({
+          teamId: team.id,
+          uids: teamUids([uid, profile.uid]),
+          title: `Open spot: ${event.title}`,
+          body: `${shortWhen(event)} — ${(who?.name || "A teammate").split(" ")[0]} can't make it. First to claim gets it.`,
+          url: `/#/event/${eventId}`,
+          tag: `slot-${eventId}`,
+        });
         sendSlotOpenedEmail({
           recipients: teamEmails([uid]),
           openerName: who?.name || "A teammate",
@@ -182,6 +195,14 @@ export function AppProvider({ children }) {
       const event = events.find((e) => e.id === eventId);
       await db.claimSlot(team.id, eventId, fromUid, toUid, taker.name, taker.initials || initialsOf(taker.name), taker.color || colorFor(toUid));
       if (event) {
+        notify({
+          teamId: team.id,
+          uids: teamUids([toUid === profile.uid ? toUid : profile.uid]),
+          title: `Spot taken: ${event.title}`,
+          body: `${shortWhen(event)} — ${taker.name.split(" ")[0]} took ${(opener?.name || "a teammate").split(" ")[0]}'s spot.`,
+          url: `/#/event/${eventId}`,
+          tag: `slot-${eventId}`,
+        });
         // Everyone else hears the spot is gone; the opener gets their own note below.
         sendSlotTakenEmail({
           recipients: teamEmails([toUid, fromUid]).concat(taker.email && toUid !== profile.uid ? [taker.email] : []),
@@ -211,7 +232,20 @@ export function AppProvider({ children }) {
       await db.openSlot(team.id, eventId, fromUid);
       await value.claimSlot(eventId, fromUid, toUid);
     },
-    cancelEvent: (eventId) => db.cancelEvent(team.id, eventId),
+    cancelEvent: async (eventId) => {
+      const event = events.find((e) => e.id === eventId);
+      await db.cancelEvent(team.id, eventId);
+      if (event) {
+        notify({
+          teamId: team.id,
+          uids: Object.keys(event.participants || {}).filter((u) => u !== profile.uid),
+          title: `Cancelled: ${event.title}`,
+          body: `${shortWhen(event)} is off.`,
+          url: "/#/winter",
+          tag: `event-${eventId}`,
+        });
+      }
+    },
     deleteEvents: (eventIds) => db.deleteEvents(team.id, eventIds),
     addParticipants: async (eventId, uids) => {
       const event = events.find((e) => e.id === eventId);
@@ -224,6 +258,15 @@ export function AppProvider({ children }) {
         if (m.email) emailRecipients.push({ email: m.email, name: m.name });
       });
       await db.addParticipants(team.id, eventId, newParticipants);
+      if (event) {
+        notify({
+          teamId: team.id,
+          uids: Object.keys(newParticipants).filter((u) => u !== profile.uid),
+          title: `You're on ${event.title}`,
+          body: `${shortWhen(event)} — ${profile.name.split(" ")[0]} added you. Tap to accept.`,
+          url: `/#/event/${eventId}`,
+        });
+      }
       if (event && emailRecipients.length > 0) {
         sendAddedToEventEmail({
           recipients: emailRecipients,

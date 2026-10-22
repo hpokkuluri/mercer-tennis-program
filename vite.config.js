@@ -27,6 +27,8 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
         // pdf.js is only needed by admins importing a PDF schedule — fetch it on demand, don't precache it on every phone.
         globIgnores: ["**/pdf-*.js", "**/pdf.worker*"],
+        // Phone notifications: push + notification-tap handlers (public/push-sw.js).
+        importScripts: ["push-sw.js"],
       },
     }),
   ],

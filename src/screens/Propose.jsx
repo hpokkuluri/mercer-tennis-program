@@ -5,6 +5,7 @@ import Avatar from "../components/Avatar";
 import { Header, Field, PrimaryButton, ErrorText, SectionLabel } from "../components/UI";
 import { CalendarIcon, ClockIcon, PinIcon, ChevronRightIcon, CheckIcon, WarningIcon } from "../components/Icons";
 import { sendEventEmails } from "../lib/email";
+import { notify } from "../lib/push";
 import { isOnVacation } from "../lib/vacations";
 
 export default function Propose() {
@@ -67,6 +68,15 @@ export default function Propose() {
         id = await createEvent({ ...base, participants: {}, joinOrder: [], teamSize });
         emailRecipients = members.filter((m) => m.uid !== profile.uid && m.email).map((m) => ({ email: m.email, name: m.name }));
       }
+
+      const when = `${new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${startTime ? ` ${startTime}` : ""}`;
+      notify({
+        teamId: team?.id,
+        uids: isWinter ? selected.filter((uid) => uid !== profile.uid) : members.filter((m) => m.uid !== profile.uid).map((m) => m.uid),
+        title: isWinter ? `You're on ${title}` : `New game: ${title}`,
+        body: isWinter ? `${when} — ${profile.name.split(" ")[0]} added you. Tap to accept.` : `${when} — tap to join.`,
+        url: `/#/event/${id}`,
+      });
 
       if (emailRecipients.length > 0) {
         sendEventEmails({

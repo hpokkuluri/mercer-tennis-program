@@ -209,6 +209,11 @@ export async function setSchedulerSetup(teamId, scheduler) {
   writeAll(TEAMS_KEY, teams);
 }
 
+// Local demo mode has no server, so no phone notifications.
+export async function getIdToken() {
+  return null;
+}
+
 export async function setPayments(teamId, payments) {
   const teams = readAll(TEAMS_KEY);
   if (!teams[teamId]) return;

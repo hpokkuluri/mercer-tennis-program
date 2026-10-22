@@ -6,6 +6,7 @@ import { COLORS } from "../lib/identity";
 import { THEMES, getStoredThemeId, applyTheme } from "../lib/themes";
 import { checkForUpdate, hardRefresh } from "../lib/pwaUpdate";
 import { CheckIcon } from "../components/Icons";
+import PushSettings from "../components/PushSettings";
 
 export default function Settings() {
   const { profile, usingFirebase, updateProfile, changePassword, signOut } = useApp();
@@ -119,6 +120,8 @@ export default function Settings() {
             </SecondaryButton>
           </form>
         </Card>
+
+        {usingFirebase && <PushSettings />}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <SectionLabel>Avatar color</SectionLabel>

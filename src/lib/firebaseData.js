@@ -83,6 +83,11 @@ export async function signIn({ email, password }) {
   return snap.exists() ? snap.data() : { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName };
 }
 
+// For calling our own Netlify functions as the signed-in user.
+export async function getIdToken() {
+  return auth.currentUser ? auth.currentUser.getIdToken() : null;
+}
+
 export async function signOutUser() {
   await signOut(auth);
 }

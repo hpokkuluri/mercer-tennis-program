@@ -21,6 +21,7 @@ export async function ready() {
 export const signUp = (...a) => backend.signUp(...a);
 export const signIn = (...a) => backend.signIn(...a);
 export const signOutUser = (...a) => backend.signOutUser(...a);
+export const getIdToken = (...a) => backend.getIdToken(...a);
 export const onAuthChange = (...a) => backend.onAuthChange(...a);
 export const resetPassword = (...a) => backend.resetPassword(...a);
 export const changePassword = (...a) => backend.changePassword(...a);
