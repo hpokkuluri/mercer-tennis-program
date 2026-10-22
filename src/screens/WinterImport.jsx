@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { Header, Card, SectionLabel, PrimaryButton, SecondaryButton, ErrorText, HomeButton } from "../components/UI";
 import { UploadIcon, WarningIcon, CheckIcon, XIcon } from "../components/Icons";
-import { parseWorkbook, parseGridFromAoa, fromDate, buildRowPreview, matchPlayers, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
+import { parseWorkbook, parseGridFromAoa, fromDate, buildRowPreview, matchPlayers, squashName, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
 import { genVacationId, formatRange } from "../lib/vacations";
 import { sendImportedEventEmail } from "../lib/email";
 
@@ -25,7 +25,7 @@ function downloadTemplate() {
 }
 
 export default function WinterImport() {
-  const { team, events, profile, isAdmin, createEvent, updateMemberInTeam } = useApp();
+  const { team, events, profile, isAdmin, createEvent, updateMemberInTeam, mergeParticipants } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -44,8 +44,19 @@ export default function WinterImport() {
   const [rawParsed, setRawParsed] = useState(null); // whole file, before the from-today filter
   const [fromToday, setFromToday] = useState(true);
   const [pastSkipped, setPastSkipped] = useState(0);
+  const [nameMap, setNameMap] = useState({}); // sheet name -> member uid, picked by the admin
+  const [shown, setShown] = useState(null); // the parsed file currently previewed (after the from-today filter)
 
   const members = Object.values(team?.members || {});
+  const aliases = useMemo(() => {
+    const out = {};
+    for (const [name, uid] of Object.entries(nameMap)) {
+      const m = team?.members?.[uid];
+      if (m) out[squashName(name)] = m;
+    }
+    return out;
+  }, [nameMap, team]);
+  const memberFor = (name, al = aliases) => matchPlayers(name, members, al).matched[0] || null;
 
   function loadParsed(parsed) {
     setRawParsed(parsed);
@@ -59,14 +70,9 @@ export default function WinterImport() {
     const parsed = full.format === "grid" && onlyUpcoming ? fromDate(full, localToday()) : { ...full, pastSkipped: 0 };
     setPastSkipped(parsed.pastSkipped || 0);
     setFormat(parsed.format);
+    setShown(parsed);
     if (parsed.format === "grid") {
       setGridInfo({ sheetName: parsed.sheetName, emptySlots: parsed.emptySlots, players: parsed.players });
-      setVacations(
-        parsed.vacations.map((v) => {
-          const { matched } = matchPlayers(v.name, members);
-          return { ...v, member: matched[0] || null };
-        })
-      );
       setMarkConfirmed(true);
       setEmailPlayers(false); // a whole season at once — don't send dozens of emails per player
     } else {
@@ -74,13 +80,34 @@ export default function WinterImport() {
       setVacations([]);
       setEmailPlayers(true);
     }
-    loadRows(parsed.rows, parsed.format === "grid" && onlyUpcoming);
+    applyPreview(parsed, aliases, parsed.format === "grid" && onlyUpcoming);
   }
 
-  function loadRows(rawRows, upcomingOnly = false) {
+  // Re-run matching (rows + vacations) — after loading a file, and whenever
+  // the admin matches a sheet name to a roster player.
+  function applyPreview(parsed, al, upcomingOnly) {
+    if (parsed.format === "grid") {
+      setVacations(parsed.vacations.map((v) => ({ ...v, member: memberFor(v.name, al) })));
+    }
+    loadRows(parsed.rows, upcomingOnly, al, parsed.format);
+  }
+
+  function setAlias(sheetName, uid) {
+    const next = { ...nameMap, [sheetName]: uid };
+    if (!uid) delete next[sheetName];
+    setNameMap(next);
+    const al = {};
+    for (const [name, id] of Object.entries(next)) if (team?.members?.[id]) al[squashName(name)] = team.members[id];
+    if (shown) applyPreview(shown, al, fromToday);
+  }
+
+  function loadRows(rawRows, upcomingOnly = false, al = aliases, fmt = format) {
     const preview = rawRows.map((r) => {
-      const p = buildRowPreview(r, members, events);
-      return { ...p, included: p.valid && !p.duplicate };
+      const p = buildRowPreview(r, members, events, al);
+      // Grid re-import: a game that's already there gets its missing players filled in
+      // (and its status refreshed) instead of being created twice.
+      if (fmt === "grid" && p.duplicate) return { ...p, action: "update", included: p.valid };
+      return { ...p, action: "create", included: p.valid && !p.duplicate };
     });
     setRows(preview);
     setResult(null);
@@ -157,16 +184,28 @@ export default function WinterImport() {
     setImporting(true);
     setError("");
     let created = 0;
+    let updated = 0;
+    const participantFor = (row, m) => {
+      const playedMark = format === "grid" && (row.playedNames || []).some((n) => memberFor(n)?.uid === m.uid);
+      const noShowMark = format === "grid" && (row.noShowNames || []).some((n) => memberFor(n)?.uid === m.uid);
+      const status = noShowMark ? "declined" : format === "grid" && (markConfirmed || playedMark) ? "accepted" : "pending";
+      return { uid: m.uid, name: m.name, initials: m.initials, color: m.color, status };
+    };
     for (const row of toImport) {
+      if (row.action === "update") {
+        try {
+          const add = {};
+          row.missing.forEach((m) => (add[m.uid] = participantFor(row, m)));
+          await mergeParticipants(row.existing.id, add); // also refreshes the game's status
+          updated += 1;
+        } catch {
+          // keep going
+        }
+        continue;
+      }
       try {
         const participants = {};
-        const playedSet = new Set((row.playedNames || []).map((n) => n.toLowerCase()));
-        row.matched.forEach((m) => {
-          const playedMark = format === "grid" && [...playedSet].some((n) => matchPlayers(n, [m]).matched.length > 0);
-          const noShowMark = format === "grid" && (row.noShowNames || []).some((n) => matchPlayers(n, [m]).matched.length > 0);
-          const status = noShowMark ? "declined" : format === "grid" && (markConfirmed || playedMark) ? "accepted" : "pending";
-          participants[m.uid] = { uid: m.uid, name: m.name, initials: m.initials, color: m.color, status };
-        });
+        row.matched.forEach((m) => (participants[m.uid] = participantFor(row, m)));
         await createEvent({
           type: /\bvs\b/i.test(row.title) ? "match" : "practice",
           title: row.title,
@@ -210,7 +249,7 @@ export default function WinterImport() {
         // keep going
       }
     }
-    setResult({ created, skipped: rows.length - toImport.length, vacations: vacationsAdded, emailed: emailPlayers });
+    setResult({ created, updated, skipped: rows.length - toImport.length, vacations: vacationsAdded, emailed: emailPlayers });
     setRows([]);
     setImporting(false);
   }
@@ -235,7 +274,9 @@ export default function WinterImport() {
               <CheckIcon style={{ color: "var(--green-text)" }} />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>
-              Created {result.created} game{result.created === 1 ? "" : "s"}
+              {result.created > 0 || !result.updated ? `Created ${result.created} game${result.created === 1 ? "" : "s"}` : ""}
+              {result.created > 0 && result.updated > 0 ? " · " : ""}
+              {result.updated > 0 ? `Updated ${result.updated} existing game${result.updated === 1 ? "" : "s"}` : ""}
             </div>
             {result.skipped > 0 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{result.skipped} row{result.skipped === 1 ? "" : "s"} skipped.</div>}
             {result.vacations > 0 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Added {result.vacations} vacation range{result.vacations === 1 ? "" : "s"}.</div>}
@@ -286,12 +327,37 @@ export default function WinterImport() {
                   {gridInfo.players.length} player columns: {gridInfo.players.join(", ")}. {gridInfo.emptySlots > 0 ? `${gridInfo.emptySlots} empty court slot${gridInfo.emptySlots === 1 ? "" : "s"} skipped.` : ""}
                 </div>
                 {(() => {
-                  const missing = gridInfo.players.filter((n) => matchPlayers(n, members).matched.length === 0);
-                  return missing.length > 0 ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--amber-text)" }}>
-                      <WarningIcon width={12} height={12} /> Not on the roster: {missing.join(", ")} — add them on the Team screen (names must match) and re-load the file.
+                  // Sheet names that didn't match anyone automatically, plus any the admin has matched by hand.
+                  const needs = gridInfo.players.filter((n) => nameMap[n] || !matchPlayers(n, members).matched.length);
+                  if (needs.length === 0) return null;
+                  const open = needs.filter((n) => !nameMap[n]);
+                  return (
+                    <div data-testid="name-map" style={{ display: "flex", flexDirection: "column", gap: 6, padding: "10px 12px", borderRadius: "var(--radius-sm)", background: open.length ? "var(--amber-bg, oklch(96% 0.05 85))" : "var(--green-bg)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: open.length ? "var(--amber-text)" : "var(--green-text)" }}>
+                        {open.length ? <WarningIcon width={12} height={12} /> : <CheckIcon width={12} height={12} />}
+                        {open.length
+                          ? `${open.length} name${open.length === 1 ? "" : "s"} in the sheet didn't match the roster — pick who they are, or their games will be short a player.`
+                          : "All sheet names matched."}
+                      </div>
+                      {needs.map((n) => (
+                        <label key={n} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                          <span style={{ width: 80, fontWeight: 700 }}>{n}</span>
+                          <span style={{ color: "var(--text-faint)" }}>→</span>
+                          <select
+                            data-testid={`map-${n}`}
+                            value={nameMap[n] || ""}
+                            onChange={(e) => setAlias(n, e.target.value)}
+                            style={{ flex: 1, minWidth: 0, padding: "6px 8px", borderRadius: "var(--radius-sm)", border: "var(--border-width, 1px) solid var(--border)", background: "var(--card)", fontSize: 12.5 }}
+                          >
+                            <option value="">— not on the team —</option>
+                            {[...members].sort((a, b) => a.name.localeCompare(b.name)).map((m) => (
+                              <option key={m.uid} value={m.uid}>{m.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
                     </div>
-                  ) : null;
+                  );
                 })()}
                 <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
                   <input
@@ -378,7 +444,15 @@ export default function WinterImport() {
                           <WarningIcon width={12} height={12} /> Unmatched: {row.unmatched.join(", ")}
                         </div>
                       )}
-                      {row.duplicate && (
+                      {row.duplicate && row.action === "update" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: row.missing.length ? "var(--amber-text)" : "var(--text-faint)" }}>
+                          {row.missing.length ? <WarningIcon width={12} height={12} /> : <CheckIcon width={12} height={12} />}
+                          {row.missing.length
+                            ? `Already imported — will add ${row.missing.map((m) => m.name.split(" ")[0]).join(", ")}`
+                            : "Already imported — players complete"}
+                        </div>
+                      )}
+                      {row.duplicate && row.action !== "update" && (
                         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--amber-text)" }}>
                           <WarningIcon width={12} height={12} /> Possible duplicate — a game titled "{row.title}" already exists on {row.date}. Left unchecked; tick it if this one's meant to be separate.
                         </div>
@@ -393,7 +467,15 @@ export default function WinterImport() {
                 </div>
 
                 <PrimaryButton type="button" onClick={confirmImport} disabled={importing || (rows.filter((r) => r.included && r.valid).length === 0 && !(format === "grid" && includeVacations && vacations.some((v) => v.member)))}>
-                  {importing ? "Importing…" : `Import ${rows.filter((r) => r.included && r.valid).length} Game${rows.filter((r) => r.included && r.valid).length === 1 ? "" : "s"}`}
+                  {(() => {
+                    if (importing) return "Importing…";
+                    const sel = rows.filter((r) => r.included && r.valid);
+                    const nNew = sel.filter((r) => r.action !== "update").length;
+                    const nUpd = sel.length - nNew;
+                    if (nUpd === 0) return `Import ${nNew} Game${nNew === 1 ? "" : "s"}`;
+                    if (nNew === 0) return `Update ${nUpd} Existing Game${nUpd === 1 ? "" : "s"}`;
+                    return `Import ${nNew} New · Update ${nUpd}`;
+                  })()}
                 </PrimaryButton>
               </div>
             )}

@@ -136,7 +136,11 @@ function normalizeRow(raw) {
 // roster by email (exact, case-insensitive) first, then by full name,
 // then by unique first-name. Returns matched member objects plus any
 // tokens that couldn't be resolved so the UI can flag them.
-export function matchPlayers(playersRaw, members) {
+export const squashName = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// aliases: { squashedSheetName: member } — set by the admin in the Import
+// preview when a sheet name doesn't match anyone automatically.
+export function matchPlayers(playersRaw, members, aliases = {}) {
   const tokens = String(playersRaw || "")
     .split(/[,;]/)
     .map((t) => t.trim())
@@ -144,7 +148,7 @@ export function matchPlayers(playersRaw, members) {
 
   const byEmail = new Map(members.filter((m) => m.email).map((m) => [m.email.toLowerCase(), m]));
   const byName = new Map(members.map((m) => [m.name.trim().toLowerCase(), m]));
-  const squash = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const squash = squashName;
   const bySquashed = new Map();
   members.forEach((m) => {
     const k = squash(m.name);
@@ -162,6 +166,7 @@ export function matchPlayers(playersRaw, members) {
   for (const token of tokens) {
     const lower = token.toLowerCase();
     const hit =
+      aliases[squash(token)] ||
       byEmail.get(lower) ||
       byName.get(lower) ||
       bySquashed.get(squash(token)) ||
@@ -178,17 +183,21 @@ export function matchPlayers(playersRaw, members) {
 // still has most rows unchanged. Flagged rows are still importable (in
 // case a second game really is meant to happen that day), just unchecked
 // by default so a re-import doesn't silently double-book the team.
-export function buildRowPreview(row, members, existingEvents = []) {
-  const { matched, unmatched } = matchPlayers(row.playersRaw, members);
+export function buildRowPreview(row, members, existingEvents = [], aliases = {}) {
+  const { matched, unmatched } = matchPlayers(row.playersRaw, members, aliases);
   const errors = [];
   if (!row.date) errors.push("Missing/unreadable date");
   if (!row.title) errors.push("Missing title");
   if (!row.startTime) errors.push("Missing start time");
   if (matched.length === 0) errors.push("No players matched");
-  const duplicate = Boolean(row.date) && Boolean(row.title) && existingEvents.some(
-    (e) => e.mode === "winter" && e.status !== "cancelled" && e.date === row.date && e.title.trim().toLowerCase() === row.title.trim().toLowerCase()
-  );
-  return { ...row, matched, unmatched, errors, duplicate, valid: errors.length === 0 };
+  const existing =
+    Boolean(row.date) && Boolean(row.title)
+      ? existingEvents.find(
+          (e) => e.mode === "winter" && e.status !== "cancelled" && e.date === row.date && e.title.trim().toLowerCase() === row.title.trim().toLowerCase()
+        ) || null
+      : null;
+  const missing = existing ? matched.filter((m) => !existing.participants?.[m.uid]) : [];
+  return { ...row, matched, unmatched, errors, duplicate: Boolean(existing), existing, missing, valid: errors.length === 0 };
 }
 
 export function templateCSV() {

@@ -287,7 +287,7 @@ export function subscribeEvents(teamId, cb) {
 export async function createEvent(teamId, data) {
   const ref = await addDoc(collection(db, "teams", teamId, "events"), {
     ...data,
-    status: "pending",
+    status: recomputeStatus({ ...data }),
     createdAt: serverTimestamp(),
   });
   return ref.id;
