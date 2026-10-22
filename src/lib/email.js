@@ -103,3 +103,30 @@ export async function sendSlotClaimedEmail({ toEmail, toName, title, date, claim
     text: `Hi ${toName || ""},\n\n${claimedByName} claimed the spot you opened up for ${title} on ${date} for ${teamName}. You're off the roster for that one. Open ${appUrl} if you want to double-check the schedule.\n\n— Mercer Tennis Program`,
   });
 }
+
+function prettyDate(date) {
+  if (!date) return "";
+  return new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+// To the whole team (bcc) the moment a player opens their spot, so whoever
+// is free can grab it first in the app.
+export async function sendSlotOpenedEmail({ recipients, openerName, title, date, startTime, teamName, appUrl }) {
+  if (!recipients || recipients.length === 0) return { sent: false, reason: "no-recipients" };
+  return send({
+    to: recipients,
+    subject: `Open spot: ${title} — ${prettyDate(date)}${startTime ? ` ${startTime}` : ""}`,
+    text: `${openerName} can't make ${title} on ${prettyDate(date)}${startTime ? ` at ${startTime}` : ""} and has opened their spot for ${teamName}.\n\nFirst to claim it gets it — open ${appUrl}, go to More → Slot Marketplace (or the game itself) and tap Claim.\n\n— Mercer Tennis Program`,
+  });
+}
+
+// To the whole team (bcc) once an open spot has been claimed, so nobody
+// else tries for it.
+export async function sendSlotTakenEmail({ recipients, claimedByName, openerName, title, date, startTime, teamName, appUrl }) {
+  if (!recipients || recipients.length === 0) return { sent: false, reason: "no-recipients" };
+  return send({
+    to: recipients,
+    subject: `Spot taken: ${title} — ${prettyDate(date)}`,
+    text: `${claimedByName} took ${openerName}'s open spot for ${title} on ${prettyDate(date)}${startTime ? ` at ${startTime}` : ""} (${teamName}). That spot is no longer available.\n\nSchedule: ${appUrl}\n\n— Mercer Tennis Program`,
+  });
+}

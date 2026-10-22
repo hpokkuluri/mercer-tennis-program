@@ -61,6 +61,7 @@ export default function More() {
         <Row emoji="💬" title="Messaging" subtitle="Direct messages with teammates" onClick={() => navigate("/messages")} />
         <Row emoji="🏖️" title="Vacation Days" subtitle="Let the team know when you're away" badge={myConflictCount} onClick={() => navigate("/vacations")} />
         <Row Icon={TrophyIcon} title="Game History & Ledger" subtitle="Winter games you've played, missed, and have coming up" onClick={() => navigate("/ledger")} />
+        <Row emoji="💵" title="Payments" subtitle="Your share of the court fees and who to pay" badge={0} onClick={() => navigate("/payments")} />
         <Row Icon={SwapIcon} title="Slot Marketplace" subtitle="Give up or claim an open Winter slot" badge={openSlotsCount} onClick={() => navigate("/marketplace")} />
         {isAdmin && teamConflictCount > 0 && (
           <div style={{ fontSize: 12.5, color: "var(--red-text)", background: "var(--red-bg)", borderRadius: "var(--radius-sm)", padding: "10px 12px", marginTop: 4 }}>

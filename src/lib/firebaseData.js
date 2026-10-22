@@ -200,6 +200,11 @@ export async function setSeason(teamId, season) {
 }
 
 // Team-level "Require sign-up to join" switch. Missing on older teams = true.
+// Court-cost split (More → Payments) — see src/lib/payments.js.
+export async function setPayments(teamId, payments) {
+  await updateDoc(doc(db, "teams", teamId), { payments });
+}
+
 export async function setRequireSubscription(teamId, value) {
   await updateDoc(doc(db, "teams", teamId), { requireSubscription: !!value });
 }

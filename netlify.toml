@@ -4,3 +4,5 @@
 
 [functions]
   node_bundler = "esbuild"
+  # firebase-admin (weekend-reminders) ships as a normal package rather than being bundled.
+  external_node_modules = ["firebase-admin"]

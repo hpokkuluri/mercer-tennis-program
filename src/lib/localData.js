@@ -202,6 +202,13 @@ export async function setSeason(teamId, season) {
   writeAll(TEAMS_KEY, teams);
 }
 
+export async function setPayments(teamId, payments) {
+  const teams = readAll(TEAMS_KEY);
+  if (!teams[teamId]) return;
+  teams[teamId].payments = payments;
+  writeAll(TEAMS_KEY, teams);
+}
+
 export async function setRequireSubscription(teamId, value) {
   const teams = readAll(TEAMS_KEY);
   if (!teams[teamId]) return;

@@ -55,6 +55,12 @@ export default function GameLedger() {
   const viewMember = team?.members?.[viewUid];
 
   const { rows, counts } = useMemo(() => computeLedger(events, viewUid), [events, viewUid]);
+  // Next game first, then the rest of the season in order; past games below, most recent first.
+  const upcoming = useMemo(
+    () => rows.filter((r) => r.bucket === "pending").sort((a, b) => (a.event.date + a.event.startTime).localeCompare(b.event.date + b.event.startTime)),
+    [rows]
+  );
+  const past = useMemo(() => rows.filter((r) => r.bucket !== "pending"), [rows]);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
@@ -90,10 +96,14 @@ export default function GameLedger() {
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <SectionLabel>All games</SectionLabel>
-          {rows.length === 0 && <div style={{ fontSize: 13, color: "var(--text-faint)" }}>No Winter games assigned yet.</div>}
-          {rows.map(({ event, participant, bucket }) => {
+        {rows.length === 0 && <div style={{ fontSize: 13, color: "var(--text-faint)" }}>No Winter games assigned yet.</div>}
+        {[
+          { key: "upcoming", label: `Upcoming · ${upcoming.length}`, list: upcoming },
+          { key: "past", label: `Past · ${past.length}`, list: past },
+        ].filter((s) => s.list.length > 0).map((section) => (
+        <div key={section.key} data-testid={`ledger-${section.key}`} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <SectionLabel>{section.label}</SectionLabel>
+          {section.list.map(({ event, participant, bucket }) => {
             const b = bucketBadge[bucket];
             return (
               <Card key={event.id} style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -103,7 +113,9 @@ export default function GameLedger() {
                     {event.title}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
-                    {new Date(event.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })} · {event.location}
+                    {new Date(event.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                    {event.startTime ? ` · ${event.startTime}` : ""}
+                    {event.location ? ` · ${event.location}` : ""}
                   </div>
                   {bucket === "played" && event.result && (
                     <div style={{ fontSize: 11.5, marginTop: 4, fontWeight: 700, color: event.result.outcome === "win" ? "var(--green-text)" : "var(--red-text)" }}>
@@ -121,6 +133,7 @@ export default function GameLedger() {
             );
           })}
         </div>
+        ))}
       </div>
     </div>
   );

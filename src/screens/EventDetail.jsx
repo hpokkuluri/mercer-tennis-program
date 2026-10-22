@@ -25,7 +25,7 @@ export default function EventDetail() {
   const {
     events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment,
     joinEvent, withdrawFromEvent, setWinterResult, addSummerResult, deleteSummerResult, addParticipants,
-    openSlot, closeSlot, claimSlot,
+    openSlot, closeSlot, claimSlot, swapPlayer,
   } = useApp();
   const event = events.find((e) => e.id === id);
   const [comments, setComments] = useState([]);
@@ -67,6 +67,32 @@ export default function EventDetail() {
   // who already accepted and only later found out they can't make it
   // (a new conflict, a vacation, etc.) — no other way to back out.
   const canGiveUpSlot = !open && isUpcoming && me && me.status === "accepted";
+  // Admins can trade any player's spot on an upcoming Winter game — the only
+  // way to do it for roster players who don't have a login.
+  const adminSlots = isAdmin && !open && isUpcoming && event.status !== "cancelled";
+  const firstName = (uid) => (team?.members?.[uid]?.name || event.participants?.[uid]?.name || "").split(" ")[0];
+  const adminActions = adminSlots
+    ? {
+        candidates: availableToReassign,
+        date: event.date,
+        openFor: async (uid) => {
+          await openSlot(event.id, uid);
+          await postComment(event.id, `🔄 ${firstName(uid)}'s spot is open — anyone on the team can claim it (opened by ${profile.name.split(" ")[0]}).`);
+        },
+        takeBack: async (uid) => {
+          await closeSlot(event.id, uid);
+          await postComment(event.id, `🔒 ${firstName(uid)}'s spot is back — no longer up for grabs.`);
+        },
+        giveTo: async (fromUid, toUid) => {
+          await claimSlot(event.id, fromUid, toUid);
+          await postComment(event.id, `✅ ${firstName(toUid)} took ${firstName(fromUid)}'s spot (set by ${profile.name.split(" ")[0]}).`);
+        },
+        swap: async (fromUid, toUid) => {
+          await swapPlayer(event.id, fromUid, toUid);
+          await postComment(event.id, `🔁 ${firstName(toUid)} is playing instead of ${firstName(fromUid)} (set by ${profile.name.split(" ")[0]}).`);
+        },
+      }
+    : null;
 
   const { teamSize, groups } = open ? computeGroups(event) : { teamSize: 0, groups: [] };
   const meJoined = open && Boolean(event.participants?.[profile.uid]);
@@ -182,8 +208,8 @@ export default function EventDetail() {
           )
         ) : (
           <>
-            <RosterGroup label="Accepted" tone="green" people={accepted} icon={<CheckIcon width={16} height={16} style={{ color: "var(--green-solid)" }} />} team={team} eventDate={event.date} />
-            <RosterGroup label="Pending" tone="amber" people={pending} icon={<span style={{ color: "var(--amber-solid)" }}><DotsIcon width={14} height={14} /></span>} team={team} eventDate={event.date} />
+            <RosterGroup label="Accepted" tone="green" people={accepted} icon={<CheckIcon width={16} height={16} style={{ color: "var(--green-solid)" }} />} team={team} eventDate={event.date} admin={adminActions} />
+            <RosterGroup label="Pending" tone="amber" people={pending} icon={<span style={{ color: "var(--amber-solid)" }}><DotsIcon width={14} height={14} /></span>} team={team} eventDate={event.date} admin={adminActions} />
             <RosterGroup label="Declined" tone="red" people={declined} icon={<XIcon width={15} height={15} style={{ color: "var(--red-solid)" }} />} team={team} eventDate={event.date} />
             {openSlots.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -199,6 +225,9 @@ export default function EventDetail() {
                         </SecondaryButton>
                       )}
                     </div>
+                  ))}
+                  {adminActions && openSlots.map((p) => (
+                    <AdminOpenSlotBar key={`admin-${p.uid}`} person={p} admin={adminActions} />
                   ))}
                 </div>
               </div>
@@ -595,7 +624,95 @@ function TeamPicker({ groups, value, onChange }) {
   );
 }
 
-function RosterGroup({ label, tone, people, icon, team, eventDate }) {
+const miniBtn = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: "var(--text-muted)",
+  background: "oklch(95% 0.006 90)",
+  border: "none",
+  borderRadius: "var(--radius-sm)",
+  padding: "6px 10px",
+  whiteSpace: "nowrap",
+};
+const miniSelect = {
+  flex: 1,
+  minWidth: 0,
+  fontSize: 12.5,
+  padding: "6px 8px",
+  borderRadius: "var(--radius-sm)",
+  border: "var(--border-width, 1px) solid var(--border)",
+  background: "var(--card)",
+};
+
+// Admin controls under a confirmed/pending player: open their spot to the
+// team, or swap them straight out for someone else.
+function AdminRowActions({ person, admin }) {
+  const [mode, setMode] = useState(null); // null | "swap"
+  const [busy, setBusy] = useState(false);
+  const run = async (fn) => {
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+      setMode(null);
+    }
+  };
+  if (mode === "swap") {
+    return (
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <select data-testid={`swap-select-${person.name}`} defaultValue="" disabled={busy} onChange={(e) => e.target.value && run(() => admin.swap(person.uid, e.target.value))} style={miniSelect}>
+          <option value="">Play instead of {person.name.split(" ")[0]}…</option>
+          {admin.candidates.map((m) => (
+            <option key={m.uid} value={m.uid}>{m.name}{isOnVacation(m, admin.date) ? " — on vacation" : ""}</option>
+          ))}
+        </select>
+        <button type="button" style={miniBtn} onClick={() => setMode(null)}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+      <button type="button" data-testid={`admin-open-${person.name}`} style={miniBtn} disabled={busy} onClick={() => run(() => admin.openFor(person.uid))}>
+        {busy ? "…" : "Open spot to team"}
+      </button>
+      {admin.candidates.length > 0 && (
+        <button type="button" data-testid={`admin-swap-${person.name}`} style={miniBtn} disabled={busy} onClick={() => setMode("swap")}>
+          Swap player
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Admin controls for a spot that's already open: hand it to someone, or give it back.
+function AdminOpenSlotBar({ person, admin }) {
+  const [busy, setBusy] = useState(false);
+  const run = async (fn) => {
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "10px 14px", borderTop: "1px solid var(--border-soft)", background: "oklch(97% 0.01 250)" }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", whiteSpace: "nowrap" }}>Admin:</span>
+      <select data-testid={`give-select-${person.name}`} defaultValue="" disabled={busy} onChange={(e) => e.target.value && run(() => admin.giveTo(person.uid, e.target.value))} style={miniSelect}>
+        <option value="">Give {person.name.split(" ")[0]}'s spot to…</option>
+        {admin.candidates.map((m) => (
+          <option key={m.uid} value={m.uid}>{m.name}{isOnVacation(m, admin.date) ? " — on vacation" : ""}</option>
+        ))}
+      </select>
+      <button type="button" data-testid={`take-back-${person.name}`} style={miniBtn} disabled={busy} onClick={() => run(() => admin.takeBack(person.uid))}>
+        Take back
+      </button>
+    </div>
+  );
+}
+
+function RosterGroup({ label, tone, people, icon, team, eventDate, admin }) {
   if (people.length === 0) return null;
   const toneColor = { green: "oklch(40% 0.1 140)", amber: "oklch(45% 0.11 65)", red: "oklch(50% 0.15 25)" }[tone];
   return (
@@ -614,6 +731,7 @@ function RosterGroup({ label, tone, people, icon, team, eventDate }) {
                     <WarningIcon /> On vacation this date
                   </div>
                 )}
+                {admin && <AdminRowActions person={p} admin={admin} />}
               </div>
               {icon}
             </div>

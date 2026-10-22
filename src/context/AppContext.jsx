@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { initials as initialsOf, colorFor } from "../lib/identity";
 import * as db from "../lib/db";
-import { sendJoinedEmail, sendRemovedEmail, sendAddedToEventEmail, sendVacationConflictEmail, sendSlotClaimedEmail } from "../lib/email";
+import { sendJoinedEmail, sendRemovedEmail, sendAddedToEventEmail, sendVacationConflictEmail, sendSlotClaimedEmail, sendSlotOpenedEmail, sendSlotTakenEmail } from "../lib/email";
 import { genVacationId, conflictsForRange } from "../lib/vacations";
 
 const Ctx = createContext(null);
@@ -113,6 +113,12 @@ export function AppProvider({ children }) {
 
   const isAdmin = Boolean(team?.members?.[profile?.uid]?.isAdmin);
 
+  // Every teammate's email (players without one are simply skipped), minus the given uids.
+  const teamEmails = (excludeUids = []) =>
+    Object.values(team?.members || {})
+      .filter((m) => m.email && !excludeUids.includes(m.uid))
+      .map((m) => m.email);
+
   const value = {
     dbReady,
     authLoading,
@@ -137,6 +143,7 @@ export function AppProvider({ children }) {
     },
     inviteMemberByEmail: (email) => db.inviteMemberByEmail(team.id, email, profile.uid, profile.name),
     setRequireSubscription: (value) => db.setRequireSubscription(team.id, value),
+    setPayments: (payments) => db.setPayments(team.id, payments),
     updateMemberInTeam: (uid, patch) => db.updateMemberInTeam(team.id, uid, patch),
     // Used by Import to fill in players on games it created earlier (no emails; recomputes status).
     mergeParticipants: (eventId, participants) => db.addParticipants(team.id, eventId, participants),
@@ -147,23 +154,61 @@ export function AppProvider({ children }) {
     respondToEvent: (eventId, status) => db.respondToEvent(team.id, eventId, profile.uid, status),
     reassignInvite: (eventId, toMember) =>
       db.reassignInvite(team.id, eventId, profile.uid, toMember.uid, toMember.name, toMember.initials, toMember.color),
-    openSlot: (eventId) => db.openSlot(team.id, eventId, profile.uid),
-    closeSlot: (eventId) => db.closeSlot(team.id, eventId, profile.uid),
-    claimSlot: async (eventId, fromUid) => {
-      const opener = team.members?.[fromUid];
+    // Slot trading. Players act for themselves (uid defaults to the signed-in
+    // player); admins can act for anyone — needed for roster players who
+    // don't have a login yet.
+    openSlot: async (eventId, uid = profile.uid) => {
       const event = events.find((e) => e.id === eventId);
-      await db.claimSlot(team.id, eventId, fromUid, profile.uid, profile.name, profile.initials || initialsOf(profile.name), profile.color || colorFor(profile.uid));
-      if (opener?.email && event) {
+      const who = uid === profile.uid ? profile : team.members?.[uid];
+      await db.openSlot(team.id, eventId, uid);
+      if (event) {
+        sendSlotOpenedEmail({
+          recipients: teamEmails([uid]),
+          openerName: who?.name || "A teammate",
+          title: event.title,
+          date: event.date,
+          startTime: event.startTime,
+          teamName: team.name,
+          appUrl: window.location.origin,
+        }).catch(() => {});
+      }
+    },
+    closeSlot: (eventId, uid = profile.uid) => db.closeSlot(team.id, eventId, uid),
+    claimSlot: async (eventId, fromUid, toUid = profile.uid, { quietOpener = false } = {}) => {
+      const opener = team.members?.[fromUid];
+      const taker = toUid === profile.uid ? { ...team.members?.[toUid], ...profile } : team.members?.[toUid];
+      if (!taker) return;
+      const event = events.find((e) => e.id === eventId);
+      await db.claimSlot(team.id, eventId, fromUid, toUid, taker.name, taker.initials || initialsOf(taker.name), taker.color || colorFor(toUid));
+      if (event) {
+        // Everyone else hears the spot is gone; the opener gets their own note below.
+        sendSlotTakenEmail({
+          recipients: teamEmails([toUid, fromUid]).concat(taker.email && toUid !== profile.uid ? [taker.email] : []),
+          claimedByName: taker.name,
+          openerName: opener?.name || "A teammate",
+          title: event.title,
+          date: event.date,
+          startTime: event.startTime,
+          teamName: team.name,
+          appUrl: window.location.origin,
+        }).catch(() => {});
+      }
+      if (!quietOpener && opener?.email && event) {
         sendSlotClaimedEmail({
           toEmail: opener.email,
           toName: opener.name,
           title: event.title,
           date: event.date,
-          claimedByName: profile.name,
+          claimedByName: taker.name,
           teamName: team.name,
           appUrl: window.location.origin,
         }).catch(() => {});
       }
+    },
+    // Admin: replace one player with another in a single step (no "open" email in between).
+    swapPlayer: async (eventId, fromUid, toUid) => {
+      await db.openSlot(team.id, eventId, fromUid);
+      await value.claimSlot(eventId, fromUid, toUid);
     },
     cancelEvent: (eventId) => db.cancelEvent(team.id, eventId),
     deleteEvents: (eventIds) => db.deleteEvents(team.id, eventIds),

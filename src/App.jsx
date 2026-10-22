@@ -22,6 +22,7 @@ const Settings = lazy(() => import("./screens/Settings"));
 const More = lazy(() => import("./screens/More"));
 const VacationDays = lazy(() => import("./screens/VacationDays"));
 const GameLedger = lazy(() => import("./screens/GameLedger"));
+const Payments = lazy(() => import("./screens/Payments"));
 const SlotMarketplace = lazy(() => import("./screens/SlotMarketplace"));
 const WinterImport = lazy(() => import("./screens/WinterImport"));
 
@@ -68,6 +69,7 @@ function Gate() {
         <Route path="/messages/:uid" element={<Thread />} />
         <Route path="/vacations" element={<VacationDays />} />
         <Route path="/ledger" element={<GameLedger />} />
+        <Route path="/payments" element={<Payments />} />
         <Route path="/marketplace" element={<SlotMarketplace />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
