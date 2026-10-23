@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { Header, Card, SectionLabel, PrimaryButton, SecondaryButton, HomeButton, Badge } from "../components/UI";
 import { CheckIcon, PlusIcon, TrashIcon, WarningIcon } from "../components/Icons";
-import { computeSplit, defaultPayments, money, round2 } from "../lib/payments";
+import { computeSplit, defaultPayments, money, round2, parsePaymentSheet, applyPaymentSheet } from "../lib/payments";
 
 const input = {
   width: "100%",
@@ -157,6 +157,100 @@ function Setup({ initial, members, slotTitles, onSave, onCancel }) {
   );
 }
 
+// Admin: take game counts, payer, Zelle and amount straight from the
+// payment sheet (Excel file or a shared Google Sheet link).
+function SheetLoader({ payments, members, onApply }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [link, setLink] = useState("");
+
+  async function readAoa(sheets) {
+    for (const aoa of sheets) {
+      const parsed = parsePaymentSheet(aoa);
+      if (parsed) return parsed;
+    }
+    return null;
+  }
+  function show(parsed) {
+    if (!parsed) {
+      setPreview(null);
+      return setMsg('Couldn\'t find the payment table — it needs a row of player names, then rows like "SAT | Games | 9 | 9 …".');
+    }
+    setMsg("");
+    setPreview({ parsed, ...applyPaymentSheet(payments, parsed, members) });
+  }
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      show(await readAoa(wb.SheetNames.map((n) => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: "", raw: false }))));
+    } catch {
+      setMsg("Couldn't read that file — use the .xlsx (Google Sheets: File → Download → Microsoft Excel).");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function onLink() {
+    if (!link.trim()) return;
+    setBusy(true);
+    try {
+      const [{ fetchGoogleSheetCsv }, XLSX] = await Promise.all([import("../lib/scheduleImport"), import("xlsx")]);
+      const res = await fetchGoogleSheetCsv(link.trim());
+      if (!res.ok) return setMsg('Couldn\'t open that sheet. Share it as "Anyone with the link → Viewer", and copy the link while the payment tab is open.');
+      const wb = XLSX.read(res.csv, { type: "string" });
+      show(await readAoa([XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "", raw: false })]));
+    } catch {
+      setMsg("Couldn't open that sheet — try the Excel file instead.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card data-testid="sheet-loader" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>Load from your payment sheet</div>
+      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Uses the sheet's game counts per player (instead of counting the schedule), plus each court's payer, Zelle number and amount.</div>
+      <label style={{ display: "block" }}>
+        <input data-testid="sheet-file" type="file" accept=".xlsx,.xls,.csv" onChange={onFile} style={{ display: "none" }} />
+        <span style={{ display: "block", textAlign: "center", padding: "10px", borderRadius: "var(--radius-md)", border: "var(--border-width, 1px) solid var(--border)", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>{busy ? "Reading…" : "Choose Excel file"}</span>
+      </label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="…or paste a Google Sheet link" style={input} />
+        <SecondaryButton type="button" onClick={onLink} disabled={busy} style={{ width: 80 }}>Fetch</SecondaryButton>
+      </div>
+      {msg && <div style={{ fontSize: 12.5, color: "var(--amber-text)" }}>{msg}</div>}
+      {preview && (
+        <div data-testid="sheet-preview" style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 6, borderTop: "1px solid var(--border-soft, var(--border))" }}>
+          {preview.parsed.courts.map((c) => (
+            <div key={c.label} style={{ fontSize: 12.5 }}>
+              <b>{c.label}</b>: {Object.values(c.counts).reduce((a, b) => a + b, 0)} player-games · paid by {c.payerName || "—"}
+              {c.amount ? ` · ${money(c.amount)}` : ""}
+              {c.phone ? ` · ${c.phone}` : ""}
+            </div>
+          ))}
+          {preview.unmatched.length > 0 && (
+            <div style={{ display: "flex", gap: 5, fontSize: 12, color: "var(--amber-text)" }}>
+              <WarningIcon width={12} height={12} style={{ flexShrink: 0, marginTop: 2 }} />
+              Not on the roster, skipped: {preview.unmatched.join(", ")}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <SecondaryButton type="button" onClick={() => setPreview(null)} style={{ flex: 1 }}>Cancel</SecondaryButton>
+            <PrimaryButton data-testid="sheet-apply" type="button" onClick={async () => { await onApply(preview.payments); setPreview(null); setMsg("Loaded — counts and payers now follow your sheet."); }} style={{ flex: 2 }}>
+              Use these numbers
+            </PrimaryButton>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function Payments() {
   const { team, events, profile, isAdmin, setPayments } = useApp();
   const members = team?.members || {};
@@ -217,6 +311,7 @@ export default function Payments() {
               </div>
             )}
             <Setup initial={payments} members={members} slotTitles={slotTitles} onSave={save} onCancel={configured ? () => setEditing(false) : null} />
+            {!configured && <SheetLoader payments={payments} members={members} onApply={setPayments} />}
           </div>
         )}
 
@@ -307,11 +402,17 @@ export default function Payments() {
 
             {tab === "courts" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {isAdmin && <SheetLoader payments={payments} members={members} onApply={setPayments} />}
                 {isAdmin && (
                   <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5 }}>
-                    <input type="checkbox" checked={editCounts} onChange={(e) => setEditCounts(e.target.checked)} />
+                    <input data-testid="edit-counts" type="checkbox" checked={editCounts} onChange={(e) => setEditCounts(e.target.checked)} />
                     Adjust game counts (if the agreed split differs from the schedule)
                   </label>
+                )}
+                {isAdmin && editCounts && Object.keys(payments.overrides || {}).some((k) => Object.keys(payments.overrides[k] || {}).length) && (
+                  <SecondaryButton type="button" onClick={() => setPayments({ ...payments, overrides: {} })}>
+                    Reset all counts to the schedule
+                  </SecondaryButton>
                 )}
                 {split.courts.map((c) => {
                   const canMark = isAdmin || (c.payerUid && c.payerUid === profile.uid);
@@ -333,7 +434,12 @@ export default function Payments() {
                           The schedule has {c.scheduledTotal} of {c.slots} player-games for this court ({payments.totalWeeks} weeks × {payments.playersPerGame}). If past weeks weren't imported, re-import with "Start from today" unticked, or adjust counts.
                         </div>
                       )}
-                      {c.rows.map((r) => (
+                      {(editCounts
+                        ? Object.values(members)
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map((m) => c.rows.find((x) => x.uid === m.uid) || { uid: m.uid, name: m.name, games: 0, scheduled: 0, owes: 0, self: c.payerUid === m.uid, received: false })
+                        : c.rows
+                      ).map((r) => (
                         <div key={r.uid} data-testid="pay-court-row" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontWeight: 600 }}>{r.name}</span>
@@ -341,6 +447,8 @@ export default function Payments() {
                           </div>
                           {editCounts ? (
                             <input
+                              key={`${c.id}-${r.uid}-${r.games}`}
+                              data-testid={`count-${c.id}-${r.name}`}
                               type="number"
                               inputMode="numeric"
                               defaultValue={r.games}
