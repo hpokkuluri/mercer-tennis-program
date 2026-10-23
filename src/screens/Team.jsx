@@ -8,7 +8,32 @@ import { GearIcon, TrashIcon, MailIcon } from "../components/Icons";
 import { sendInviteEmail } from "../lib/email";
 
 export default function Team() {
-  const { team, profile, isAdmin, setAdmin, removeMember, inviteMemberByEmail, setRequireSubscription, addPlaceholderMember, subscribeAnnouncements, postAnnouncement } = useApp();
+  const { team, events, profile, isAdmin, setAdmin, removeMember, inviteMemberByEmail, setRequireSubscription, addPlaceholderMember, subscribeAnnouncements, postAnnouncement, linkPlaceholder } = useApp();
+  const [linking, setLinking] = useState(null); // placeholder uid being linked
+  const [linkNotice, setLinkNotice] = useState("");
+  const squash = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const accounts = Object.values(team?.members || {}).filter((m) => !m.placeholder);
+  // A signed-up player whose name matches this no-login entry (HARI ↔ Hari Pokkuluri).
+  const suggestFor = (ph) => {
+    const k = squash(ph.name);
+    const hits = accounts.filter((a) => squash(a.name) === k || squash(a.name.split(/\s+/)[0]) === k || squash(ph.name.split(/\s+/)[0]) === squash(a.name.split(/\s+/)[0]));
+    return hits.length === 1 ? hits[0] : null;
+  };
+  async function doLink(ph, to) {
+    if (!to) return;
+    const games = events.filter((e) => e.participants?.[ph.uid]).length;
+    if (!window.confirm(`Link "${ph.name}" to ${to.name}'s account?\n\nMoves ${games} game${games === 1 ? "" : "s"}, vacation days, sub days and payment entries to ${to.name}, then removes the no-login "${ph.name}" entry.`)) return;
+    setLinking(ph.uid);
+    setLinkNotice("");
+    try {
+      const { moved } = await linkPlaceholder(ph.uid, to.uid);
+      setLinkNotice(`Linked — ${moved} game${moved === 1 ? "" : "s"} moved to ${to.name}.`);
+    } catch (err) {
+      setLinkNotice(err.message || "Couldn't link — try again.");
+    } finally {
+      setLinking(null);
+    }
+  }
   const navigate = useNavigate();
   const [announcements, setAnnouncements] = useState([]);
   const [text, setText] = useState("");
@@ -158,6 +183,7 @@ export default function Team() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <SectionLabel>Roster · {members.length}</SectionLabel>
           {removeError && <div style={{ fontSize: 12.5, color: "var(--red-text)" }}>{removeError}</div>}
+          {linkNotice && <div data-testid="link-notice" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--green-text)" }}>{linkNotice}</div>}
           <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
             {members.map((m, i) => (
               <div key={m.uid} data-testid="member-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < members.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
@@ -170,6 +196,30 @@ export default function Team() {
                       Not joined yet — no login
                     </div>
                   )}
+                  {isAdmin && m.placeholder && accounts.length > 0 && (() => {
+                    const sug = suggestFor(m);
+                    return (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+                        {sug && (
+                          <button type="button" data-testid={`link-suggest-${m.name}`} disabled={linking === m.uid} onClick={() => doLink(m, sug)} style={{ fontSize: 11.5, fontWeight: 700, border: "none", borderRadius: 999, padding: "5px 10px", background: "var(--accent)", color: "var(--accent-text)" }}>
+                            {linking === m.uid ? "Linking…" : `This is ${sug.name} → link`}
+                          </button>
+                        )}
+                        <select
+                          data-testid={`link-select-${m.name}`}
+                          value=""
+                          disabled={linking === m.uid}
+                          onChange={(e) => doLink(m, team.members[e.target.value])}
+                          style={{ fontSize: 11.5, padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "var(--border-width, 1px) solid var(--border)", background: "var(--card)", maxWidth: 170 }}
+                        >
+                          <option value="">{sug ? "Someone else…" : "Signed up? Link to account…"}</option>
+                          {accounts.map((a) => (
+                            <option key={a.uid} value={a.uid}>{a.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
                 </div>
                 {m.uid !== profile.uid && (
                   <div style={{ display: "flex", gap: 6 }}>

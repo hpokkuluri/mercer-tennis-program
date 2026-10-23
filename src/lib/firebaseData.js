@@ -24,6 +24,7 @@ import {
   serverTimestamp,
   deleteField,
   writeBatch,
+  FieldPath,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -226,6 +227,10 @@ export async function setSchedulerSetup(teamId, scheduler) {
 // One mark inside payments (e.g. ["claimed", courtId, uid]) without
 // rewriting the rest — so a player tapping "I've paid" can't clobber an
 // admin's edit made at the same moment. value null removes it.
+export async function setTeamFields(teamId, patch) {
+  await updateDoc(doc(db, "teams", teamId), patch);
+}
+
 export async function setPaymentMark(teamId, path, value) {
   await updateDoc(doc(db, "teams", teamId), { [["payments", ...path].join(".")]: value == null ? deleteField() : value });
 }
@@ -396,6 +401,15 @@ export async function deleteEvents(teamId, eventIds) {
     eventIds.slice(i, i + 400).forEach((id) => batch.delete(doc(db, "teams", teamId, "events", id)));
     await batch.commit();
   }
+}
+
+// Swap one player for another on a game, keeping their status (used when a
+// no-login roster entry is linked to the player's real account).
+export async function replaceParticipant(teamId, eventId, fromUid, toParticipant, joinOrder) {
+  const ref = doc(db, "teams", teamId, "events", eventId);
+  const args = [new FieldPath("participants", fromUid), deleteField(), new FieldPath("participants", toParticipant.uid), toParticipant];
+  if (joinOrder) args.push("joinOrder", joinOrder);
+  await updateDoc(ref, ...args);
 }
 
 export async function cancelEvent(teamId, eventId) {

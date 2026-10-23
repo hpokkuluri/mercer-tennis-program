@@ -57,7 +57,8 @@ export default function Propose() {
         const participants = {};
         selected.forEach((uid) => {
           const m = members.find((mm) => mm.uid === uid);
-          participants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: "pending" };
+          // Winter games are pre-agreed — no accepting; players can still open their spot.
+          participants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: "accepted" };
           if (m?.email && uid !== profile.uid) emailRecipients.push({ email: m.email, name: m.name });
         });
         id = await createEvent({ ...base, participants });
@@ -74,12 +75,13 @@ export default function Propose() {
         teamId: team?.id,
         uids: isWinter ? selected.filter((uid) => uid !== profile.uid) : members.filter((m) => m.uid !== profile.uid).map((m) => m.uid),
         title: isWinter ? `You're on ${title}` : `New game: ${title}`,
-        body: isWinter ? `${when} — ${profile.name.split(" ")[0]} added you. Tap to accept.` : `${when} — tap to join.`,
+        body: isWinter ? `${when} — ${profile.name.split(" ")[0]} added you. Can't make it? Open your spot in the app.` : `${when} — tap to join.`,
         url: `/#/event/${id}`,
       });
 
       if (emailRecipients.length > 0) {
         sendEventEmails({
+          winter: isWinter,
           recipients: emailRecipients,
           teamName: team?.name,
           title,

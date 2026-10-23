@@ -1,4 +1,4 @@
-// Scheduled: Wednesday and Friday nights (~8 PM Eastern) — emails every
+// Scheduled: Wednesday and Friday at 6 PM Eastern — emails every
 // player their games for the coming weekend, and team admins the whole
 // weekend's lineup. Logic lives in ../lib/reminders.js.
 //
@@ -10,8 +10,11 @@
 //   GMAIL_USER, GMAIL_APP_PASSWORD — already set for send-email.
 // Without the Firebase pair it logs "not-configured" and does nothing.
 //
-// Cron is UTC: 00:00 Thu and Sat UTC = 8 PM Wed/Fri EDT (7 PM in EST).
-// Netlify's Functions tab has a "Run now" button for a manual test.
+// Cron is UTC and Eastern shifts with daylight saving, so it fires at both
+// 22:00 and 23:00 UTC on Wed/Fri and only sends on the run that falls at
+// 6 PM or later New York time (22:00 UTC in EDT, 23:00 UTC in EST); the
+// reminderLog guard stops a second send the same day. Netlify's "Run now"
+// works for a manual test after 6 PM Eastern.
 
 import nodemailer from "nodemailer";
 import { buildReminders, reminderWindow } from "../lib/reminders.js";
@@ -39,6 +42,11 @@ export default async () => {
   });
 
   const now = new Date();
+  const nyHour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" }).format(now));
+  if (nyHour < 18) {
+    console.log(`weekend-reminders: ${nyHour}:00 in New York — waiting for the 6 PM run`);
+    return new Response("too-early");
+  }
   const { today, start, end } = reminderWindow(now);
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(now);
   const kind = weekday === "Fri" ? "fri" : "wed";
@@ -83,4 +91,4 @@ export default async () => {
   return new Response(`sent ${sent}`);
 };
 
-export const config = { schedule: "0 0 * * 4,6" };
+export const config = { schedule: "0 22,23 * * 3,5" };

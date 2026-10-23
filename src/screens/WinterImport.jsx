@@ -6,6 +6,7 @@ import { UploadIcon, WarningIcon, CheckIcon, XIcon } from "../components/Icons";
 import { parseWorkbook, parseGridFromAoa, fromDate, buildRowPreview, matchPlayers, squashName, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
 import { genVacationId, formatRange } from "../lib/vacations";
 import { sendImportedEventEmail } from "../lib/email";
+import SeasonEmailButton from "../components/SeasonEmailButton";
 
 function localToday() {
   const d = new Date();
@@ -367,6 +368,11 @@ export default function WinterImport() {
             {result.skipped > 0 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{result.skipped} row{result.skipped === 1 ? "" : "s"} skipped.</div>}
             {result.vacations > 0 && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Added {result.vacations} vacation range{result.vacations === 1 ? "" : "s"}.</div>}
             <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{result.emailed ? "Assigned players with an email on file have been emailed." : "No emails were sent."}</div>
+            {!result.emailed && result.created > 0 && (
+              <div style={{ width: "100%", marginTop: 6 }}>
+                <SeasonEmailButton compact />
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10, width: "100%", marginTop: 8 }}>
               <SecondaryButton onClick={() => navigate("/winter")}>View Winter Schedule</SecondaryButton>
               <SecondaryButton onClick={() => setResult(null)}>Import More</SecondaryButton>

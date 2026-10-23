@@ -4,6 +4,7 @@ import { useApp } from "../context/AppContext";
 import { Header, Card, SectionLabel, PrimaryButton, SecondaryButton, HomeButton, ErrorText } from "../components/UI";
 import { CheckIcon, PlusIcon, TrashIcon, WarningIcon } from "../components/Icons";
 import { WEEKDAYS, buildWeeks, generateSchedule, isoAdd, weekdayOf } from "../lib/scheduler";
+import SeasonEmailButton from "../components/SeasonEmailButton";
 
 const input = {
   width: "100%",
@@ -373,6 +374,9 @@ export default function SeasonPlanner() {
                   <button type="button" onClick={() => navigate("/winter")} style={{ border: "none", background: "none", color: "var(--text)", textDecoration: "underline", fontWeight: 700, padding: 0 }}>
                     View schedule
                   </button>
+                  <div style={{ marginTop: 10 }}>
+                    <SeasonEmailButton compact />
+                  </div>
                 </div>
               ) : (
                 <PrimaryButton data-testid="plan-create" type="button" onClick={createAll} disabled={creating}>

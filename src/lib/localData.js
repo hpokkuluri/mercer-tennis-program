@@ -214,6 +214,13 @@ export async function getIdToken() {
   return null;
 }
 
+export async function setTeamFields(teamId, patch) {
+  const teams = readAll(TEAMS_KEY);
+  if (!teams[teamId]) return;
+  Object.assign(teams[teamId], patch);
+  writeAll(TEAMS_KEY, teams);
+}
+
 export async function setPaymentMark(teamId, path, value) {
   const teams = readAll(TEAMS_KEY);
   if (!teams[teamId]) return;
@@ -427,6 +434,16 @@ export async function closeSlot(teamId, eventId, uid) {
 export async function deleteEvents(teamId, eventIds) {
   const all = readAll(EVENTS_KEY);
   eventIds.forEach((id) => delete all[id]);
+  writeAll(EVENTS_KEY, all);
+}
+
+export async function replaceParticipant(teamId, eventId, fromUid, toParticipant, joinOrder) {
+  const all = readAll(EVENTS_KEY);
+  const e = all[eventId];
+  if (!e) return;
+  delete e.participants[fromUid];
+  e.participants[toParticipant.uid] = toParticipant;
+  if (joinOrder) e.joinOrder = joinOrder;
   writeAll(EVENTS_KEY, all);
 }
 

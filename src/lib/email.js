@@ -47,21 +47,23 @@ export async function sendRemovedEmail({ toEmail, toName, teamName }) {
   });
 }
 
-export async function sendEventEmails({ recipients, teamName, title, date, startTime, location, organizerName, appUrl }) {
+export async function sendEventEmails({ recipients, teamName, title, date, startTime, location, organizerName, appUrl, winter = false }) {
   if (!recipients || recipients.length === 0) return { sent: false, reason: "no-recipients" };
   return send({
     to: recipients.map((r) => r.email),
-    subject: `New ${title} posted — ${teamName}`,
-    text: `${organizerName} posted a new ${title} for ${teamName} on ${date} at ${startTime}, ${location}. Open ${appUrl} to join.\n\n— Mercer Tennis Program`,
+    subject: winter ? `You're playing: ${title} — ${prettyDate(date)}` : `New ${title} posted — ${teamName}`,
+    text: winter
+      ? `${organizerName} put you on ${title} for ${teamName} on ${prettyDate(date)} at ${startTime}${location ? `, ${location}` : ""}. You're confirmed — if you can't make it, open your spot in the app so a teammate can take it: ${appUrl}\n\n— Mercer Tennis Program`
+      : `${organizerName} posted a new ${title} for ${teamName} on ${date} at ${startTime}, ${location}. Open ${appUrl} to join.\n\n— Mercer Tennis Program`,
   });
 }
 
-export async function sendAddedToEventEmail({ recipients, teamName, title, date, startTime, location, organizerName, appUrl }) {
+export async function sendAddedToEventEmail({ recipients, teamName, title, date, startTime, location, organizerName, appUrl, winter = false }) {
   if (!recipients || recipients.length === 0) return { sent: false, reason: "no-recipients" };
   return send({
     to: recipients.map((r) => r.email),
     subject: `You've been added to ${title} — ${teamName}`,
-    text: `${organizerName} added you to ${title} for ${teamName} on ${date} at ${startTime}, ${location}. Open ${appUrl} to accept or decline.\n\n— Mercer Tennis Program`,
+    text: `${organizerName} added you to ${title} for ${teamName} on ${date} at ${startTime}${location ? `, ${location}` : ""}. ${winter ? "You're confirmed — if you can't make it, open your spot in the app" : "Open the app to accept or decline"}: ${appUrl}\n\n— Mercer Tennis Program`,
   });
 }
 
@@ -139,4 +141,11 @@ export async function sendSlotTakenEmail({ recipients, claimedByName, openerName
     subject: `Spot taken: ${title} — ${prettyDate(date)}`,
     text: `${claimedByName} took ${openerName}'s open spot for ${title} on ${prettyDate(date)}${startTime ? ` at ${startTime}` : ""} (${teamName}). That spot is no longer available.\n\nSchedule: ${appUrl}\n\n— Mercer Tennis Program`,
   });
+}
+
+// One player's whole Winter schedule (sent once at the start of a season,
+// or again after big changes). Built by src/lib/seasonEmail.js.
+export async function sendSeasonScheduleEmail({ to, subject, text }) {
+  if (!to) return { sent: false, reason: "no-recipients" };
+  return send({ to, subject, text });
 }

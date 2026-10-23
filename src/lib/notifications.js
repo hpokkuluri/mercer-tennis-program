@@ -11,6 +11,18 @@ export function todayStr() {
 }
 const upcoming = (e) => !e.date || e.date >= todayStr();
 
+// This player's games from today through Sunday (Sat + Sun both show).
+export function myGamesThisWeek(events, uid) {
+  const today = todayStr();
+  const d = new Date(today + "T12:00:00");
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  const end = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, "0")}-${String(sunday.getDate()).padStart(2, "0")}`;
+  return events
+    .filter((e) => e.status !== "cancelled" && e.date >= today && e.date <= end && ["accepted", "pending", "open"].includes(e.participants?.[uid]?.status))
+    .sort((a, b) => (a.date + (a.startTime || "")).localeCompare(b.date + (b.startTime || "")));
+}
+
 // The signed-in player's next game (accepted, waiting on them, or their spot
 // currently open), soonest first.
 export function myNextGame(events, uid) {

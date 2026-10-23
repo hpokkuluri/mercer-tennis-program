@@ -6,6 +6,7 @@ import { ChevronRightIcon } from "../components/Icons";
 import { todayStr } from "../lib/notifications";
 import { allTeamConflicts } from "../lib/vacations";
 import { computeSplit, money } from "../lib/payments";
+import SeasonEmailButton from "../components/SeasonEmailButton";
 
 const when = (e) => `${new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${e.startTime ? ` ${e.startTime}` : ""}`;
 
@@ -75,6 +76,13 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        <Section testid="dash-email" title="Season schedule email" count="">
+          <Card style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Each player gets one email listing all of their upcoming Winter games, who they play with, and how to open a spot.</div>
+            <SeasonEmailButton />
+          </Card>
+        </Section>
+
         <Section testid="dash-week" title="Next 7 days — not fully confirmed" count={notReady.length} tone={notReady.length ? "warn" : "ok"}>
           <Card style={{ padding: "4px 14px" }}>
             {notReady.length === 0
@@ -121,6 +129,14 @@ export default function AdminDashboard() {
 
         <Section testid="dash-roster" title="Roster" count={`${list.length} players`}>
           <Card style={{ padding: "4px 14px" }}>
+            {(() => {
+              const sq = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+              const real = list.filter((m) => !m.placeholder);
+              const dups = noLogin.filter((ph) => real.some((a) => sq(a.name.split(/\s+/)[0]) === sq(ph.name.split(/\s+/)[0])));
+              return dups.length
+                ? row("dups", <b style={{ color: "var(--amber-text)" }}>Signed up but still a no-login entry too — link them</b>, dups.map((m) => m.name).join(", "), () => navigate("/team"))
+                : null;
+            })()}
             {row("nologin", "Haven't signed up yet", noLogin.length ? noLogin.map((m) => m.name.split(" ")[0]).join(", ") : "none", () => navigate("/team"))}
             {row("noemail", "No email on file (no emails or reminders)", noEmail.length ? noEmail.map((m) => m.name.split(" ")[0]).join(", ") : "none", () => navigate("/team"))}
           </Card>

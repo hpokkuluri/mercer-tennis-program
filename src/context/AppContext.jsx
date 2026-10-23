@@ -177,6 +177,13 @@ export function AppProvider({ children }) {
     inviteMemberByEmail: (email) => db.inviteMemberByEmail(team.id, email, profile.uid, profile.name),
     setRequireSubscription: (value) => db.setRequireSubscription(team.id, value),
     setPayments: (payments) => db.setPayments(team.id, payments),
+    // Admin: email every player their own full Winter schedule (+ a phone notification).
+    sendSeasonSchedules: async () => {
+      const { sendSeasonSchedules } = await import("../lib/seasonEmail");
+      const res = await sendSeasonSchedules({ team, events, appUrl: window.location.origin });
+      await db.setTeamFields(team.id, { seasonEmailSentAt: new Date().toISOString() }).catch(() => {});
+      return res;
+    },
     // Player: "I've sent my share for this court" (or undo). Tells the payer.
     claimPaid: async (court, amountText, on = true) => {
       await db.setPaymentMark(team.id, ["claimed", court.id, profile.uid], on ? new Date().toISOString() : null);
@@ -295,6 +302,47 @@ export function AppProvider({ children }) {
         }).catch(() => {});
       }
     },
+    // Admin: a roster player added without a login ("HARI") has now signed
+    // up ("Hari Pokkuluri"). Move everything from the no-login entry onto
+    // the real account — games, vacations, sub days, payment counts/marks —
+    // then remove the no-login entry.
+    linkPlaceholder: async (fromUid, toUid) => {
+      const from = team.members?.[fromUid];
+      const to = team.members?.[toUid];
+      if (!from || !to || fromUid === toUid) return { moved: 0 };
+      let moved = 0;
+      for (const e of events) {
+        const p = e.participants?.[fromUid];
+        if (!p) continue;
+        const joinOrder = Array.isArray(e.joinOrder) && e.joinOrder.includes(fromUid) ? e.joinOrder.map((u) => (u === fromUid ? toUid : u)) : null;
+        const keep = e.participants?.[toUid] ? e.participants[toUid] : { ...p, uid: toUid, name: to.name, initials: to.initials, color: to.color };
+        await db.replaceParticipant(team.id, e.id, fromUid, keep, joinOrder);
+        moved += 1;
+      }
+      const vac = [...(to.vacations || [])];
+      for (const v of from.vacations || []) if (!vac.some((x) => x.start === v.start && x.end === v.end)) vac.push(v);
+      const subDates = [...new Set([...(to.subDates || []), ...(from.subDates || [])])].sort();
+      await db.updateMemberInTeam(team.id, toUid, { vacations: vac, subDates, ...(to.photo || !from.photo ? {} : { photo: from.photo }) });
+      if (team.payments) {
+        const pay = JSON.parse(JSON.stringify(team.payments));
+        for (const key of ["overrides", "received", "claimed"]) {
+          for (const courtId of Object.keys(pay[key] || {})) {
+            const m = pay[key][courtId];
+            if (m && fromUid in m) {
+              if (key === "overrides") m[toUid] = (Number(m[toUid]) || 0) + (Number(m[fromUid]) || 0);
+              else if (!(toUid in m)) m[toUid] = m[fromUid];
+              delete m[fromUid];
+            }
+          }
+        }
+        (pay.courts || []).forEach((c) => {
+          if (c.payerUid === fromUid) c.payerUid = toUid;
+        });
+        await db.setPayments(team.id, pay);
+      }
+      await db.removeMember(team.id, fromUid);
+      return { moved };
+    },
     // Admin: replace one player with another in a single step (no "open" email in between).
     swapPlayer: async (eventId, fromUid, toUid) => {
       await db.openSlot(team.id, eventId, fromUid);
@@ -322,7 +370,7 @@ export function AppProvider({ children }) {
       uids.forEach((uid) => {
         const m = team.members?.[uid];
         if (!m) return;
-        newParticipants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: "pending" };
+        newParticipants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: event?.mode === "winter" ? "accepted" : "pending" };
         if (m.email) emailRecipients.push({ email: m.email, name: m.name });
       });
       await db.addParticipants(team.id, eventId, newParticipants);
@@ -331,12 +379,13 @@ export function AppProvider({ children }) {
           teamId: team.id,
           uids: Object.keys(newParticipants).filter((u) => u !== profile.uid),
           title: `You're on ${event.title}`,
-          body: `${shortWhen(event)} — ${profile.name.split(" ")[0]} added you. Tap to accept.`,
+          body: `${shortWhen(event)} — ${profile.name.split(" ")[0]} added you.${event.mode === "winter" ? " Can't make it? Open your spot in the app." : " Tap to accept."}`,
           url: `/#/event/${eventId}`,
         });
       }
       if (event && emailRecipients.length > 0) {
         sendAddedToEventEmail({
+          winter: event.mode === "winter",
           recipients: emailRecipients,
           teamName: team.name,
           title: event.title,
