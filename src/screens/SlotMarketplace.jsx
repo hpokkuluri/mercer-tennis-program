@@ -59,7 +59,7 @@ export default function SlotMarketplace() {
                 </button>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Avatar initials={opener.initials} color={opener.color} size={26} />
+                    <Avatar uid={opener.uid} initials={opener.initials} color={opener.color} size={26} />
                     <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{opener.name.split(" ")[0]}'s slot is open</div>
                   </div>
                   {opener.uid === profile.uid ? (

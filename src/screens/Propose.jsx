@@ -150,7 +150,7 @@ export default function Propose() {
                   return (
                     <button type="button" key={m.uid} onClick={() => toggle(m.uid)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                       <div style={{ position: "relative" }}>
-                        <Avatar initials={m.initials} color={m.color} size={52} ring={on ? "var(--accent)" : undefined} />
+                        <Avatar uid={m.uid} initials={m.initials} color={m.color} size={52} ring={on ? "var(--accent)" : undefined} />
                         {on && (
                           <div style={{ position: "absolute", bottom: -2, right: -2, width: 18, height: 18, borderRadius: 999, background: "var(--accent)", border: "2px solid var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <CheckIcon width={9} height={9} style={{ color: "var(--accent-text)" }} />
@@ -210,7 +210,7 @@ export default function Propose() {
 }
 
 const inputRowStyle = { border: "none", outline: "none", fontSize: 15, fontWeight: 700, color: "var(--text)", background: "transparent", width: "100%", fontFamily: "inherit" };
-const stepperBtnStyle = { width: 32, height: 32, borderRadius: 999, border: "var(--border-width, 1px) solid var(--border)", background: "oklch(95% 0.006 90)", fontSize: 18, fontWeight: 700, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const stepperBtnStyle = { width: 32, height: 32, borderRadius: 999, border: "var(--border-width, 1px) solid var(--border)", background: "var(--border-soft)", fontSize: 18, fontWeight: 700, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
 
 function Row({ icon, label, children }) {
   return (

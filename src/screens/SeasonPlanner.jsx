@@ -61,6 +61,7 @@ export default function SeasonPlanner() {
   );
   const [result, setResult] = useState(null);
   const [markConfirmed, setMarkConfirmed] = useState(true);
+  const [variety, setVariety] = useState(Boolean(saved.variety));
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(null);
   const [error, setError] = useState("");
@@ -93,9 +94,10 @@ export default function SeasonPlanner() {
       slotDefs,
       perGame: Number(perGame),
       seed,
+      variety: variety ? 1 : 0,
     });
     setResult({ ...res, labels, slotDefs, ratings: Object.fromEntries(chosen.map((m) => [m.uid, Number(getP(m.uid).rating)])), ids: chosen.map((m) => m.uid) });
-    setSchedulerSetup({ startDate, weeks: Number(weeks), perGame: Number(perGame), slotDefs, skip, players: Object.fromEntries(members.map((m) => [m.uid, getP(m.uid)])) }).catch(() => {});
+    setSchedulerSetup({ startDate, weeks: Number(weeks), perGame: Number(perGame), slotDefs, skip, variety, players: Object.fromEntries(members.map((m) => [m.uid, getP(m.uid)])) }).catch(() => {});
   }
 
   const existingInRange = result
@@ -283,6 +285,16 @@ export default function SeasonPlanner() {
           <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>Vacation days already entered in the app are respected. Uncheck anyone sitting this season out.</div>
         </div>
 
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, padding: "10px 12px", borderRadius: "var(--radius-md)", background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)" }}>
+          <input data-testid="plan-variety" type="checkbox" checked={variety} onChange={(e) => setVariety(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>
+            <b>Rotate partners</b>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+              Mix up who plays together so the same four aren't on a court every week. Ratings stay close (usually within half a level) but not as tight.
+            </div>
+          </span>
+        </label>
+
         <ErrorText>{error}</ErrorText>
         <PrimaryButton data-testid="plan-generate" type="button" onClick={() => run(Date.now())}>
           {result ? "Generate again" : "Generate schedule"}
@@ -308,6 +320,8 @@ export default function SeasonPlanner() {
               )}
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                 Rating gap on a court: {result.eval.avgSpread.toFixed(2)} on average, {result.eval.maxSpread.toFixed(1)} at most · {result.games.length} games over {result.weeks.length} weeks
+                <br />
+                Partner mix: {result.eval.pairCount} different pairings · the same two play together at most {result.eval.maxPair} times
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                 <SecondaryButton data-testid="plan-shuffle" type="button" onClick={() => run(Date.now())} style={{ flex: 1 }}>🔀 Shuffle</SecondaryButton>

@@ -161,7 +161,7 @@ export default function Team() {
           <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
             {members.map((m, i) => (
               <div key={m.uid} data-testid="member-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < members.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-                <Avatar initials={m.initials} color={m.color} size={34} />
+                <Avatar uid={m.uid} initials={m.initials} color={m.color} size={34} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{m.name}{m.uid === profile.uid ? " (you)" : ""}</div>
                   {m.isAdmin && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green-solid)" }}>Admin</div>}
@@ -173,11 +173,11 @@ export default function Team() {
                 </div>
                 {m.uid !== profile.uid && (
                   <div style={{ display: "flex", gap: 6 }}>
-                    {!m.placeholder && <button onClick={() => navigate(`/messages/${m.uid}`)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
+                    {!m.placeholder && <button onClick={() => navigate(`/messages/${m.uid}`)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "var(--border-soft)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
                       Message
                     </button>}
                     {isAdmin && (
-                      <button onClick={() => setAdmin(m.uid, !m.isAdmin)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "oklch(95% 0.006 90)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
+                      <button onClick={() => setAdmin(m.uid, !m.isAdmin)} style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", background: "var(--border-soft)", border: "none", borderRadius: "var(--radius-sm)", padding: "6px 10px" }}>
                         {m.isAdmin ? "Demote" : "Make admin"}
                       </button>
                     )}

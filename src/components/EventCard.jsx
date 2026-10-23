@@ -70,7 +70,7 @@ export default function EventCard({ event }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
         <div style={{ display: "flex" }}>
           {participants.slice(0, 4).map((p, i) => (
-            <Avatar key={p.uid} initials={p.initials} color={p.color} size={26} style={{ border: "2px solid white", marginLeft: i === 0 ? 0 : -8 }} />
+            <Avatar key={p.uid} uid={p.uid} initials={p.initials} color={p.color} size={26} style={{ border: "2px solid white", marginLeft: i === 0 ? 0 : -8 }} />
           ))}
         </div>
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>

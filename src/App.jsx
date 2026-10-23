@@ -4,6 +4,8 @@ import { AppProvider, useApp } from "./context/AppContext";
 import Shell from "./components/Shell";
 import Login from "./screens/Login";
 import OnboardTeam from "./screens/OnboardTeam";
+import Splash from "./components/Splash";
+import OfflineBanner from "./components/OfflineBanner";
 
 // Everything past the login/onboarding gate is code-split so the first
 // paint (and the local demo/Firebase auth check) only downloads what it
@@ -26,11 +28,17 @@ const Payments = lazy(() => import("./screens/Payments"));
 const SlotMarketplace = lazy(() => import("./screens/SlotMarketplace"));
 const WinterImport = lazy(() => import("./screens/WinterImport"));
 const SeasonPlanner = lazy(() => import("./screens/SeasonPlanner"));
+const SubList = lazy(() => import("./screens/SubList"));
+const Stats = lazy(() => import("./screens/Stats"));
+const AdminDashboard = lazy(() => import("./screens/AdminDashboard"));
 
 function RouteLoading() {
   return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="display" style={{ color: "var(--text-faint)", fontSize: 14 }}>Loading…</div>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12, padding: "calc(env(safe-area-inset-top, 0px) + 18px) 24px" }}>
+      <div className="skeleton" style={{ height: 26, width: "55%", borderRadius: 8 }} />
+      <div className="skeleton" style={{ height: 120, borderRadius: "var(--radius-lg)" }} />
+      <div className="skeleton" style={{ height: 84, borderRadius: "var(--radius-lg)" }} />
+      <div className="skeleton" style={{ height: 84, borderRadius: "var(--radius-lg)" }} />
     </div>
   );
 }
@@ -38,13 +46,7 @@ function RouteLoading() {
 function Gate() {
   const { authLoading, profile, team } = useApp();
 
-  if (authLoading) {
-    return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div className="display" style={{ color: "var(--text-faint)", fontSize: 14 }}>Loading…</div>
-      </div>
-    );
-  }
+  if (authLoading) return <Splash />;
 
   if (!profile) {
     return <Login />;
@@ -72,6 +74,9 @@ function Gate() {
         <Route path="/vacations" element={<VacationDays />} />
         <Route path="/ledger" element={<GameLedger />} />
         <Route path="/payments" element={<Payments />} />
+        <Route path="/subs" element={<SubList />} />
+        <Route path="/stats" element={<Stats />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/marketplace" element={<SlotMarketplace />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -85,6 +90,7 @@ export default function App() {
     <AppProvider>
       <HashRouter>
         <Shell>
+          <OfflineBanner />
           <Gate />
         </Shell>
       </HashRouter>

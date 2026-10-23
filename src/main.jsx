@@ -5,6 +5,7 @@ import "./theme.css";
 import App from "./App.jsx";
 import { applyTheme, getStoredThemeId } from "./lib/themes";
 import { setUpdateSW } from "./lib/pwaUpdate";
+import { installPullToRefresh } from "./lib/pullToRefresh";
 
 applyTheme(getStoredThemeId());
 
@@ -15,6 +16,8 @@ applyTheme(getStoredThemeId());
 // and reloads automatically the moment a new version is ready, so opening
 // the app is enough to pick up the latest build.
 setUpdateSW(registerSW({ immediate: true }));
+
+installPullToRefresh();
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

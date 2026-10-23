@@ -102,7 +102,7 @@ export default function VacationDays() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {teamConflicts.map(({ member, vacation, event }, i) => (
                 <Card key={i} style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                  <Avatar initials={member.initials} color={member.color} size={32} />
+                  <Avatar uid={member.uid} initials={member.initials} color={member.color} size={32} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 700 }}>{member.name}</div>
                     <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 1 }}>

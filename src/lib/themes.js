@@ -236,26 +236,45 @@ const ALL_KEYS = [
   "--shadow-card", "--shadow-btn",
 ];
 
-const KEY = "rallypoint.theme";
+const OLD_KEY = "rallypoint.theme";
+const KEY = "mtp.theme";
+
+// "auto" follows the phone: Classic by day, Midnight when the phone is in
+// dark mode. It's the default; anyone who had picked a non-default theme
+// before keeps it.
+export const AUTO = { id: "auto", name: "Match my phone", blurb: "Classic in light mode, Midnight in dark mode — switches with your phone." };
+const dark = () => window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+const resolve = (id) => (id === "auto" ? (dark() ? "midnight" : "lime") : id);
 
 export function getStoredThemeId() {
   try {
     const stored = localStorage.getItem(KEY);
-    return THEMES.some((t) => t.id === stored) ? stored : THEMES[0].id;
+    if (stored === "auto" || THEMES.some((t) => t.id === stored)) return stored;
+    const old = localStorage.getItem(OLD_KEY);
+    return old && old !== "lime" && THEMES.some((t) => t.id === old) ? old : "auto";
   } catch {
-    return THEMES[0].id;
+    return "auto";
   }
 }
 
+let listening = false;
 export function applyTheme(id) {
-  const t = THEMES.find((x) => x.id === id) || THEMES[0];
+  const chosen = id === "auto" || THEMES.some((x) => x.id === id) ? id : "auto";
+  const t = THEMES.find((x) => x.id === resolve(chosen)) || THEMES[0];
   const root = document.documentElement;
   ALL_KEYS.forEach((k) => root.style.removeProperty(k));
   Object.entries(t.tokens).forEach(([k, v]) => root.style.setProperty(k, v));
+  root.style.colorScheme = t.dark ? "dark" : "light";
   try {
-    localStorage.setItem(KEY, t.id);
+    localStorage.setItem(KEY, chosen);
   } catch {
     // best effort — a private/blocked storage context just won't persist the pick
   }
-  return t.id;
+  if (!listening && window.matchMedia) {
+    listening = true;
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
+      if (getStoredThemeId() === "auto") applyTheme("auto");
+    });
+  }
+  return chosen;
 }

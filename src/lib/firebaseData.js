@@ -6,6 +6,9 @@
 import { initializeApp } from "firebase/app";
 import {
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc,
   getDoc,
   getDocs,
@@ -39,7 +42,16 @@ import { initials as initialsOf, colorFor } from "./identity";
 import { computeGroups, isOpenEvent } from "./groups";
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Keeps a copy of the team's data on the phone so the schedule still opens
+// with no signal (and changes made offline sync when it's back).
+function makeDb() {
+  try {
+    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch {
+    return getFirestore(app);
+  }
+}
+export const db = makeDb();
 export const auth = getAuth(app);
 
 // ---------- auth ----------
@@ -209,6 +221,13 @@ export async function setSeason(teamId, season) {
 // Saved setup for the season planner (Winter Schedule → Plan).
 export async function setSchedulerSetup(teamId, scheduler) {
   await updateDoc(doc(db, "teams", teamId), { scheduler });
+}
+
+// One mark inside payments (e.g. ["claimed", courtId, uid]) without
+// rewriting the rest — so a player tapping "I've paid" can't clobber an
+// admin's edit made at the same moment. value null removes it.
+export async function setPaymentMark(teamId, path, value) {
+  await updateDoc(doc(db, "teams", teamId), { [["payments", ...path].join(".")]: value == null ? deleteField() : value });
 }
 
 export async function setPayments(teamId, payments) {

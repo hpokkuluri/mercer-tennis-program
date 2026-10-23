@@ -36,6 +36,7 @@ export const setSeason = (...a) => backend.setSeason(...a);
 export const setAdmin = (...a) => backend.setAdmin(...a);
 export const setRequireSubscription = (...a) => backend.setRequireSubscription(...a);
 export const setPayments = (...a) => backend.setPayments(...a);
+export const setPaymentMark = (...a) => backend.setPaymentMark(...a);
 export const setSchedulerSetup = (...a) => backend.setSchedulerSetup(...a);
 export const addPlaceholderMember = (...a) => backend.addPlaceholderMember(...a);
 export const updateMemberInTeam = (...a) => backend.updateMemberInTeam(...a);

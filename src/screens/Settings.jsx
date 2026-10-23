@@ -3,13 +3,42 @@ import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import { Header, Card, Field, SectionLabel, SecondaryButton, ErrorText } from "../components/UI";
 import { COLORS } from "../lib/identity";
-import { THEMES, getStoredThemeId, applyTheme } from "../lib/themes";
+import { THEMES, AUTO, getStoredThemeId, applyTheme } from "../lib/themes";
 import { checkForUpdate, hardRefresh } from "../lib/pwaUpdate";
 import { CheckIcon } from "../components/Icons";
 import PushSettings from "../components/PushSettings";
 
 export default function Settings() {
-  const { profile, usingFirebase, updateProfile, changePassword, signOut } = useApp();
+  const { profile, team, usingFirebase, updateProfile, changePassword, signOut, setPhoto } = useApp();
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const hasPhoto = Boolean(team?.members?.[profile.uid]?.photo);
+
+  // Shrink to a 160px square JPEG (~10 KB) before saving.
+  async function onPhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = rej;
+        i.src = url;
+      });
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const c = document.createElement("canvas");
+      c.width = c.height = 160;
+      c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 160, 160);
+      URL.revokeObjectURL(url);
+      await setPhoto(c.toDataURL("image/jpeg", 0.82));
+    } catch {
+      // unreadable image — ignore
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   const [name, setName] = useState(profile.name);
   const [nameBusy, setNameBusy] = useState(false);
@@ -106,10 +135,19 @@ export default function Settings() {
       <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 24px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
         <Card style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Avatar initials={profile.initials} color={profile.color} size={44} />
-            <div>
+            <label style={{ position: "relative", cursor: "pointer" }} title="Change photo">
+              <Avatar uid={profile.uid} initials={profile.initials} color={profile.color} size={56} />
+              <span style={{ position: "absolute", right: -2, bottom: -2, width: 22, height: 22, borderRadius: 999, background: "var(--accent)", color: "var(--accent-text)", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--card)" }}>📷</span>
+              <input data-testid="photo-input" type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
+            </label>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div className="display" style={{ fontSize: 15, fontWeight: 700 }}>{profile.name}</div>
               <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{profile.email}</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                {photoBusy ? "Saving photo…" : hasPhoto ? (
+                  <button type="button" onClick={() => setPhoto("")} style={{ border: "none", background: "none", padding: 0, color: "var(--text-muted)", textDecoration: "underline", fontSize: 12 }}>Remove photo</button>
+                ) : "Tap the circle to add a photo"}
+              </div>
             </div>
           </div>
           <form onSubmit={saveName} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -151,7 +189,7 @@ export default function Settings() {
             Changes the whole look — fonts, shapes, shadows, and background, not just the accent color.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {THEMES.map((t) => {
+            {[AUTO, ...THEMES].map((t) => {
               const on = t.id === themeId;
               return (
                 <button
@@ -173,16 +211,16 @@ export default function Settings() {
                     style={{
                       width: 40,
                       height: 40,
-                      borderRadius: t.tokens["--radius-sm"] || "9px",
-                      background: t.tokens["--bg"],
-                      border: `${t.tokens["--border-width"] || "1px"} solid ${t.tokens["--border"]}`,
+                      borderRadius: t.tokens?.["--radius-sm"] || "9px",
+                      background: t.tokens ? t.tokens["--bg"] : "linear-gradient(135deg, oklch(97% 0.006 95) 50%, oklch(22% 0.02 260) 50%)",
+                      border: `${t.tokens?.["--border-width"] || "1px"} solid ${t.tokens?.["--border"] || "var(--border)"}`,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
                     }}
                   >
-                    <span style={{ fontFamily: t.tokens["--font-display"], fontSize: 15, fontWeight: 700, color: t.swatch }}>Aa</span>
+                    <span style={{ fontFamily: t.tokens?.["--font-display"], fontSize: 15, fontWeight: 700, color: t.swatch || "oklch(75% 0.19 125)" }}>{t.tokens ? "Aa" : "◐"}</span>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t.name}</div>

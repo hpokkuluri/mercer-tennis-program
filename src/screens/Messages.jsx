@@ -35,7 +35,7 @@ export default function Messages() {
                     onClick={() => navigate(`/messages/${other.uid}`)}
                     style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: "none", background: "none", borderBottom: i < convos.length - 1 ? "1px solid var(--border-soft)" : "none" }}
                   >
-                    <Avatar initials={other.initials} color={other.color} size={38} />
+                    <Avatar uid={other.uid} initials={other.initials} color={other.color} size={38} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>{other.name}</div>
                       <div style={{ fontSize: 12.5, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage}</div>
@@ -57,7 +57,7 @@ export default function Messages() {
                 onClick={() => navigate(`/messages/${m.uid}`)}
                 style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--card)" }}
               >
-                <Avatar initials={m.initials} color={m.color} size={34} />
+                <Avatar uid={m.uid} initials={m.initials} color={m.color} size={34} />
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</div>
               </button>
             ))}

@@ -16,6 +16,16 @@ const input = {
   boxSizing: "border-box",
 };
 
+const chip = {
+  fontSize: 12,
+  fontWeight: 700,
+  padding: "6px 11px",
+  borderRadius: 999,
+  border: "var(--border-width, 1px) solid var(--border)",
+  background: "var(--card)",
+  color: "var(--text)",
+};
+
 function Small({ children }) {
   return <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 4 }}>{children}</div>;
 }
@@ -252,7 +262,13 @@ function SheetLoader({ payments, members, onApply }) {
 }
 
 export default function Payments() {
-  const { team, events, profile, isAdmin, setPayments } = useApp();
+  const { team, events, profile, isAdmin, setPayments, claimPaid, setReceived } = useApp();
+  const [copied, setCopied] = useState("");
+  const copy = (key, text) => {
+    navigator.clipboard?.writeText(text).catch(() => {});
+    setCopied(key);
+    setTimeout(() => setCopied(""), 1500);
+  };
   const members = team?.members || {};
   const stored = team?.payments;
   const payments = stored || defaultPayments();
@@ -273,13 +289,11 @@ export default function Payments() {
     await setPayments(next);
     setEditing(false);
   };
-  const toggleReceived = (courtId, uid) => {
-    const received = { ...(payments.received || {}) };
-    received[courtId] = { ...(received[courtId] || {}) };
-    if (received[courtId][uid]) delete received[courtId][uid];
-    else received[courtId][uid] = true;
-    setPayments({ ...payments, received });
-  };
+  const toggleReceived = (courtId, uid) => setReceived(courtId, uid, !payments.received?.[courtId]?.[uid]);
+  // Claims waiting on me (as the court's payer) or on any admin.
+  const toConfirm = split.courts.flatMap((c) =>
+    isAdmin || (c.payerUid && c.payerUid === profile.uid) ? c.rows.filter((r) => r.claimed).map((r) => ({ court: c, row: r })) : []
+  );
   const setOverride = (courtId, uid, value, scheduled) => {
     const overrides = { ...(payments.overrides || {}) };
     overrides[courtId] = { ...(overrides[courtId] || {}) };
@@ -319,6 +333,22 @@ export default function Payments() {
 
         {configured && (
           <>
+            {toConfirm.length > 0 && (
+              <Card data-testid="pay-confirm" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, borderColor: "var(--amber-text)" }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>💸 Payments to confirm</div>
+                {toConfirm.map(({ court, row }) => (
+                  <div key={court.id + row.uid} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <b>{row.name}</b> says they paid {court.payerUid === profile.uid ? "you" : court.payerName} <b>{money(row.owes)}</b> · {court.label}
+                    </div>
+                    <button type="button" data-testid={`confirm-${court.id}-${row.name}`} onClick={() => setReceived(court.id, row.uid, true)} className="display" style={{ border: "none", borderRadius: 999, padding: "6px 12px", fontWeight: 700, fontSize: 12.5, background: "var(--accent)", color: "var(--accent-text)" }}>
+                      Got it
+                    </button>
+                  </div>
+                ))}
+              </Card>
+            )}
+
             {me ? (
               <Card data-testid="pay-mine" style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
@@ -329,7 +359,8 @@ export default function Payments() {
                   {me.games} games this season · {money(me.total)} total
                 </div>
                 {me.lines.map((l) => (
-                  <div key={l.courtId} style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 10, borderTop: "1px solid var(--border-soft, var(--border))" }}>
+                  <div key={l.courtId} style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 10, borderTop: "1px solid var(--border-soft, var(--border))" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 700 }}>
                         {l.self ? `${l.label} — your own court` : `Pay ${l.payerName || "—"} ${money(l.owes)}`}
@@ -344,7 +375,30 @@ export default function Payments() {
                         ) : null}
                       </div>
                     </div>
-                    {l.received ? <Badge tone="green">{l.self ? "Covered" : "Received"}</Badge> : <Badge tone="amber">Due</Badge>}
+                    {l.received ? <Badge tone="green">{l.self ? "Covered" : "Received"}</Badge> : l.claimed ? <Badge tone="neutral">Sent</Badge> : <Badge tone="amber">Due</Badge>}
+                  </div>
+                  {!l.received && !l.self && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: -2 }}>
+                      {l.phone && (
+                        <button type="button" onClick={() => copy(`p${l.courtId}`, l.phone.replace(/[^\d+]/g, ""))} style={chip}>
+                          {copied === `p${l.courtId}` ? "Copied ✓" : "Copy Zelle #"}
+                        </button>
+                      )}
+                      <button type="button" onClick={() => copy(`a${l.courtId}`, l.owes.toFixed(2))} style={chip}>
+                        {copied === `a${l.courtId}` ? "Copied ✓" : `Copy ${money(l.owes)}`}
+                      </button>
+                      {l.claimed ? (
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center" }}>
+                          Waiting for {l.payerName || "the payer"} to confirm ·{" "}
+                          <button type="button" onClick={() => claimPaid(l.court, money(l.owes), false)} style={{ border: "none", background: "none", padding: 0, textDecoration: "underline", color: "var(--text-muted)", fontSize: 12 }}>undo</button>
+                        </span>
+                      ) : (
+                        <button type="button" data-testid={`ive-paid-${l.courtId}`} onClick={() => claimPaid(l.court, money(l.owes), true)} style={{ ...chip, background: "var(--accent)", color: "var(--accent-text)", border: "none" }}>
+                          I've paid
+                        </button>
+                      )}
+                    </div>
+                  )}
                   </div>
                 ))}
               </Card>
@@ -444,6 +498,7 @@ export default function Payments() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontWeight: 600 }}>{r.name}</span>
                             {r.self && <span style={{ fontSize: 11, color: "var(--text-faint)" }}> · paid this court</span>}
+                            {r.claimed && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--amber-text)" }}> · says paid</span>}
                           </div>
                           {editCounts ? (
                             <input

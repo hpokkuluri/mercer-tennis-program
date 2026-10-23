@@ -56,7 +56,7 @@ export default function Schedule({ season }) {
               ✨ Plan
             </button>
           )}
-          <Avatar initials={profile.initials} color={profile.color} size={38} />
+          <Avatar uid={profile.uid} initials={profile.initials} color={profile.color} size={38} />
         </div>
       </div>
 

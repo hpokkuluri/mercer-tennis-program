@@ -38,7 +38,7 @@ export default function Thread() {
         title={other.name}
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Avatar initials={other.initials} color={other.color} size={30} />
+            <Avatar uid={other.uid} initials={other.initials} color={other.color} size={30} />
             <HomeButton />
           </div>
         }

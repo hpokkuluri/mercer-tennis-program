@@ -4,6 +4,7 @@ import Avatar from "../components/Avatar";
 import { Header, Card, Badge, SectionLabel, HomeButton } from "../components/UI";
 import { CheckIcon, XIcon } from "../components/Icons";
 import { computeLedger } from "../lib/ledger";
+import CalendarSync from "../components/CalendarSync";
 
 // A leading checklist mark per game — filled green check once played, a
 // dashed empty ring while it's still upcoming, a light red X if the date
@@ -75,7 +76,7 @@ export default function GameLedger() {
                 onClick={() => setViewUid(m.uid)}
                 style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, flexShrink: 0 }}
               >
-                <Avatar initials={m.initials} color={m.color} size={44} ring={m.uid === viewUid ? "var(--accent)" : undefined} />
+                <Avatar uid={m.uid} initials={m.initials} color={m.color} size={44} ring={m.uid === viewUid ? "var(--accent)" : undefined} />
                 <div style={{ fontSize: 11, fontWeight: 600, color: m.uid === viewUid ? "var(--text)" : "var(--text-faint)" }}>
                   {m.uid === profile.uid ? "You" : m.name.split(" ")[0]}
                 </div>
@@ -83,6 +84,8 @@ export default function GameLedger() {
             ))}
           </div>
         )}
+
+        {viewUid === profile.uid && <CalendarSync />}
 
         <div>
           <div className="display" style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>

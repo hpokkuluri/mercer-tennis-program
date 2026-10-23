@@ -15,7 +15,7 @@ export default defineConfig({
         description: "Scheduling for your tennis team — propose, accept, and confirm matches and practices.",
         start_url: "/",
         display: "standalone",
-        background_color: "#f7f6f2",
+        background_color: "#93c100",
         theme_color: "#93c100",
         icons: [
           { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },

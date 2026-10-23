@@ -70,7 +70,8 @@ export function computeSplit(payments, events, members) {
         const games = over[uid] != null && over[uid] !== "" ? Number(over[uid]) : scheduled;
         const self = Boolean(c.payerUid) && c.payerUid === uid;
         const received = self || Boolean(p.received?.[c.id]?.[uid]);
-        return { uid, name: member?.name || "(removed player)", games, scheduled, overridden: games !== scheduled, owes: round2(games * rate), self, received };
+        const claimed = !received && Boolean(p.claimed?.[c.id]?.[uid]);
+        return { uid, name: member?.name || "(removed player)", games, scheduled, overridden: games !== scheduled, owes: round2(games * rate), self, received, claimed };
       })
       .filter((r) => r.games > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -86,7 +87,7 @@ export function computeSplit(payments, events, members) {
       const lines = courts
         .map((c) => {
           const r = c.rows.find((x) => x.uid === m.uid);
-          return r ? { courtId: c.id, label: c.label, payerName: c.payerName, phone: c.phone, games: r.games, owes: r.owes, self: r.self, received: r.received } : null;
+          return r ? { courtId: c.id, court: c, label: c.label, payerName: c.payerName, phone: c.phone, games: r.games, owes: r.owes, self: r.self, received: r.received, claimed: r.claimed } : null;
         })
         .filter(Boolean);
       const games = lines.reduce((n, l) => n + l.games, 0);

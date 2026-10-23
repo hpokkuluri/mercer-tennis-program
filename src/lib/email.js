@@ -104,6 +104,16 @@ export async function sendSlotClaimedEmail({ toEmail, toName, title, date, claim
   });
 }
 
+// To the member who paid for a court, when a player says they've sent their share.
+export async function sendPaidClaimEmail({ toEmail, toName, playerName, amount, courtLabel, teamName, appUrl }) {
+  if (!toEmail) return { sent: false, reason: "no-recipients" };
+  return send({
+    to: toEmail,
+    subject: `${playerName} says they paid you ${amount} (${courtLabel})`,
+    text: `Hi ${toName || ""},\n\n${playerName} marked their ${courtLabel} court share of ${amount} as paid for ${teamName}. Once it's in your account, confirm it in the app: ${appUrl} → More → Payments.\n\n— Mercer Tennis Program`,
+  });
+}
+
 function prettyDate(date) {
   if (!date) return "";
   return new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -111,11 +121,11 @@ function prettyDate(date) {
 
 // To the whole team (bcc) the moment a player opens their spot, so whoever
 // is free can grab it first in the app.
-export async function sendSlotOpenedEmail({ recipients, openerName, title, date, startTime, teamName, appUrl }) {
+export async function sendSlotOpenedEmail({ recipients, openerName, title, date, startTime, teamName, appUrl, sub = false }) {
   if (!recipients || recipients.length === 0) return { sent: false, reason: "no-recipients" };
   return send({
     to: recipients,
-    subject: `Open spot: ${title} — ${prettyDate(date)}${startTime ? ` ${startTime}` : ""}`,
+    subject: `${sub ? "You're on the sub list — open spot" : "Open spot"}: ${title} — ${prettyDate(date)}${startTime ? ` ${startTime}` : ""}`,
     text: `${openerName} can't make ${title} on ${prettyDate(date)}${startTime ? ` at ${startTime}` : ""} and has opened their spot for ${teamName}.\n\nFirst to claim it gets it — open ${appUrl}, go to More → Slot Marketplace (or the game itself) and tap Claim.\n\n— Mercer Tennis Program`,
   });
 }

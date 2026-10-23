@@ -73,7 +73,7 @@ export default function EventDetail() {
   const firstName = (uid) => (team?.members?.[uid]?.name || event.participants?.[uid]?.name || "").split(" ")[0];
   const adminActions = adminSlots
     ? {
-        candidates: availableToReassign,
+        candidates: [...availableToReassign].sort((a, b) => Number((b.subDates || []).includes(event.date)) - Number((a.subDates || []).includes(event.date))),
         date: event.date,
         openFor: async (uid) => {
           await openSlot(event.id, uid);
@@ -217,7 +217,7 @@ export default function EventDetail() {
                 <div style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
                   {openSlots.map((p, i) => (
                     <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < openSlots.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-                      <Avatar initials={p.initials} color={p.color} size={34} />
+                      <Avatar uid={p.uid} initials={p.initials} color={p.color} size={34} />
                       <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}'s spot — up for grabs</div>
                       {p.uid !== profile.uid && !event.participants?.[profile.uid] && (
                         <SecondaryButton style={{ width: "auto", padding: "8px 14px" }} disabled={claimingUid === p.uid} onClick={() => claim(p.uid)}>
@@ -333,7 +333,7 @@ export default function EventDetail() {
               {availableToReassign.length === 0 && <div style={{ fontSize: 13, color: "var(--text-faint)" }}>Everyone on the team is already invited.</div>}
               {availableToReassign.map((m) => (
                 <button key={m.uid} onClick={() => reassignTo(m)} style={{ background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-md)", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                  <Avatar initials={m.initials} color={m.color} size={26} />
+                  <Avatar uid={m.uid} initials={m.initials} color={m.color} size={26} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
                 </button>
               ))}
@@ -381,7 +381,7 @@ function GroupCard({ group, teamSize, participants }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {people.map((p) => (
           <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Avatar initials={p.initials} color={p.color} size={30} />
+            <Avatar uid={p.uid} initials={p.initials} color={p.color} size={30} />
             <div style={{ fontSize: 13.5, fontWeight: 600 }}>{p.name}</div>
           </div>
         ))}
@@ -432,7 +432,7 @@ function AddPlayers({ candidates, onAdd }) {
           return (
             <button type="button" key={m.uid} onClick={() => toggle(m.uid)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
               <div style={{ position: "relative" }}>
-                <Avatar initials={m.initials} color={m.color} size={48} ring={on ? "var(--accent)" : undefined} />
+                <Avatar uid={m.uid} initials={m.initials} color={m.color} size={48} ring={on ? "var(--accent)" : undefined} />
                 {on && (
                   <div style={{ position: "absolute", bottom: -2, right: -2, width: 17, height: 17, borderRadius: 999, background: "var(--accent)", border: "2px solid var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <CheckIcon width={8} height={8} style={{ color: "var(--accent-text)" }} />
@@ -628,7 +628,7 @@ const miniBtn = {
   fontSize: 12,
   fontWeight: 700,
   color: "var(--text-muted)",
-  background: "oklch(95% 0.006 90)",
+  background: "var(--border-soft)",
   border: "none",
   borderRadius: "var(--radius-sm)",
   padding: "6px 10px",
@@ -664,7 +664,7 @@ function AdminRowActions({ person, admin }) {
         <select data-testid={`swap-select-${person.name}`} defaultValue="" disabled={busy} onChange={(e) => e.target.value && run(() => admin.swap(person.uid, e.target.value))} style={miniSelect}>
           <option value="">Play instead of {person.name.split(" ")[0]}…</option>
           {admin.candidates.map((m) => (
-            <option key={m.uid} value={m.uid}>{m.name}{isOnVacation(m, admin.date) ? " — on vacation" : ""}</option>
+            <option key={m.uid} value={m.uid}>{m.name}{(m.subDates || []).includes(admin.date) ? " — on sub list" : ""}{isOnVacation(m, admin.date) ? " — on vacation" : ""}</option>
           ))}
         </select>
         <button type="button" style={miniBtn} onClick={() => setMode(null)}>Cancel</button>
@@ -702,7 +702,7 @@ function AdminOpenSlotBar({ person, admin }) {
       <select data-testid={`give-select-${person.name}`} defaultValue="" disabled={busy} onChange={(e) => e.target.value && run(() => admin.giveTo(person.uid, e.target.value))} style={miniSelect}>
         <option value="">Give {person.name.split(" ")[0]}'s spot to…</option>
         {admin.candidates.map((m) => (
-          <option key={m.uid} value={m.uid}>{m.name}{isOnVacation(m, admin.date) ? " — on vacation" : ""}</option>
+          <option key={m.uid} value={m.uid}>{m.name}{(m.subDates || []).includes(admin.date) ? " — on sub list" : ""}{isOnVacation(m, admin.date) ? " — on vacation" : ""}</option>
         ))}
       </select>
       <button type="button" data-testid={`take-back-${person.name}`} style={miniBtn} disabled={busy} onClick={() => run(() => admin.takeBack(person.uid))}>
@@ -723,7 +723,7 @@ function RosterGroup({ label, tone, people, icon, team, eventDate, admin }) {
           const onVacation = eventDate && team?.members?.[p.uid] && isOnVacation(team.members[p.uid], eventDate);
           return (
             <div key={p.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < people.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-              <Avatar initials={p.initials} color={p.color} size={34} />
+              <Avatar uid={p.uid} initials={p.initials} color={p.color} size={34} />
               <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
                 {p.name}{p.reassignedFrom ? " (reassigned)" : ""}{p.claimedFrom ? " (claimed)" : ""}
                 {onVacation && (

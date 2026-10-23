@@ -29,6 +29,10 @@ function urlB64ToUint8Array(b64) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
+export async function callFunction(fn, body) {
+  return call(fn, body);
+}
+
 async function call(fn, body) {
   const token = await getIdToken();
   const res = await fetch(`/.netlify/functions/${fn}`, {

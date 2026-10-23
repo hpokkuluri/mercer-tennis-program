@@ -5,12 +5,26 @@
 import { isOpenEvent } from "./groups";
 import { allTeamConflicts } from "./vacations";
 
+export function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+const upcoming = (e) => !e.date || e.date >= todayStr();
+
+// The signed-in player's next game (accepted, waiting on them, or their spot
+// currently open), soonest first.
+export function myNextGame(events, uid) {
+  return events
+    .filter((e) => e.status !== "cancelled" && upcoming(e) && ["accepted", "pending", "open"].includes(e.participants?.[uid]?.status))
+    .sort((a, b) => (a.date + (a.startTime || "")).localeCompare(b.date + (b.startTime || "")))[0] || null;
+}
+
 export function pendingInvites(events, uid) {
-  return events.filter((e) => e.participants?.[uid]?.status === "pending" && e.status !== "cancelled");
+  return events.filter((e) => e.participants?.[uid]?.status === "pending" && e.status !== "cancelled" && upcoming(e));
 }
 
 export function openToJoinEvents(events, uid) {
-  return events.filter((e) => isOpenEvent(e) && e.status !== "cancelled" && !e.participants?.[uid]);
+  return events.filter((e) => isOpenEvent(e) && e.status !== "cancelled" && !e.participants?.[uid] && upcoming(e));
 }
 
 // This player's own vacation-vs-assignment conflicts (they're on the
@@ -30,7 +44,7 @@ export function teammateVacationConflicts(team, events, uid) {
 export function openSlotsToClaim(events, uid) {
   const out = [];
   events
-    .filter((e) => e.mode === "winter" && e.status !== "cancelled")
+    .filter((e) => e.mode === "winter" && e.status !== "cancelled" && upcoming(e))
     .forEach((e) => {
       if (e.participants?.[uid]) return;
       Object.values(e.participants || {})

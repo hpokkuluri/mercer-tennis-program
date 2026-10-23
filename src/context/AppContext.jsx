@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { initials as initialsOf, colorFor } from "../lib/identity";
 import * as db from "../lib/db";
-import { sendJoinedEmail, sendRemovedEmail, sendAddedToEventEmail, sendVacationConflictEmail, sendSlotClaimedEmail, sendSlotOpenedEmail, sendSlotTakenEmail } from "../lib/email";
+import { sendPaidClaimEmail, sendJoinedEmail, sendRemovedEmail, sendAddedToEventEmail, sendVacationConflictEmail, sendSlotClaimedEmail, sendSlotOpenedEmail, sendSlotTakenEmail } from "../lib/email";
 import { genVacationId, conflictsForRange } from "../lib/vacations";
 import { notify } from "../lib/push";
+import { alertCount } from "../lib/notifications";
 
 const Ctx = createContext(null);
 
@@ -13,6 +14,7 @@ export function AppProvider({ children }) {
   const [profile, setProfile] = useState(null); // {uid, email, name, initials, color, teamId?}
   const [team, setTeam] = useState(null);
   const [events, setEvents] = useState([]);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
 
   useEffect(() => {
     db.ready().then(() => setDbReady(true));
@@ -52,7 +54,11 @@ export function AppProvider({ children }) {
       }
       setTeam(t);
     });
-    const unsubEvents = db.subscribeEvents(profile.teamId, setEvents);
+    setEventsLoaded(false);
+    const unsubEvents = db.subscribeEvents(profile.teamId, (list) => {
+      setEvents(list);
+      setEventsLoaded(true);
+    });
     return () => {
       unsubTeam();
       unsubEvents();
@@ -95,6 +101,13 @@ export function AppProvider({ children }) {
     setProfile((p) => (p ? { ...p, ...patch } : p));
   }
 
+  // Profile photo lives on the team member record (small JPEG data URL, see
+  // Settings) so every teammate's avatar can show it. "" removes it.
+  async function setPhoto(photo) {
+    if (!team) return;
+    await db.updateMemberInTeam(team.id, profile.uid, { photo: photo || "" });
+  }
+
   async function createTeam({ name, code, season }) {
     const adminProfile = { name: profile.name, initials: profile.initials || initialsOf(profile.name), color: profile.color || colorFor(profile.uid), email: profile.email };
     const t = await db.createTeam({ name, code, season, adminUid: profile.uid, adminProfile });
@@ -114,6 +127,19 @@ export function AppProvider({ children }) {
 
   const isAdmin = Boolean(team?.members?.[profile?.uid]?.isAdmin);
 
+  // Red number on the installed app's home-screen icon — same count as the
+  // bell on the Hub (games to confirm, open spots, conflicts…).
+  const badge = profile && team ? alertCount(team, events, profile, isAdmin) : 0;
+  useEffect(() => {
+    try {
+      if (!("setAppBadge" in navigator)) return;
+      if (badge > 0) navigator.setAppBadge(badge).catch(() => {});
+      else navigator.clearAppBadge().catch(() => {});
+    } catch {
+      // badges are a nicety; never break the app over one
+    }
+  }, [badge]);
+
   const teamUids = (excludeUids = []) => Object.keys(team?.members || {}).filter((u) => !excludeUids.includes(u));
   const shortWhen = (e) =>
     `${new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${e.startTime ? ` ${e.startTime}` : ""}`;
@@ -131,6 +157,8 @@ export function AppProvider({ children }) {
     profile,
     team,
     events,
+    eventsLoaded,
+    badge,
     isAdmin,
     signUp,
     signIn,
@@ -149,6 +177,21 @@ export function AppProvider({ children }) {
     inviteMemberByEmail: (email) => db.inviteMemberByEmail(team.id, email, profile.uid, profile.name),
     setRequireSubscription: (value) => db.setRequireSubscription(team.id, value),
     setPayments: (payments) => db.setPayments(team.id, payments),
+    // Player: "I've sent my share for this court" (or undo). Tells the payer.
+    claimPaid: async (court, amountText, on = true) => {
+      await db.setPaymentMark(team.id, ["claimed", court.id, profile.uid], on ? new Date().toISOString() : null);
+      if (!on) return;
+      const payer = court.payerUid ? team.members?.[court.payerUid] : null;
+      if (payer) {
+        notify({ teamId: team.id, uids: [payer.uid], title: `${profile.name.split(" ")[0]} paid you ${amountText}`, body: `${court.label} court share — tap to confirm it arrived.`, url: "/#/payments", tag: `paid-${court.id}-${profile.uid}` });
+        sendPaidClaimEmail({ toEmail: payer.email, toName: payer.name, playerName: profile.name, amount: amountText, courtLabel: court.label, teamName: team.name, appUrl: window.location.origin }).catch(() => {});
+      }
+    },
+    // Payer / admin: mark a player's share received (clears their claim).
+    setReceived: async (courtId, uid, on) => {
+      await db.setPaymentMark(team.id, ["received", courtId, uid], on ? true : null);
+      if (on) await db.setPaymentMark(team.id, ["claimed", courtId, uid], null);
+    },
     setSchedulerSetup: (scheduler) => db.setSchedulerSetup(team.id, scheduler),
     updateMemberInTeam: (uid, patch) => db.updateMemberInTeam(team.id, uid, patch),
     // Used by Import to fill in players on games it created earlier (no emails; recomputes status).
@@ -156,6 +199,7 @@ export function AppProvider({ children }) {
     addPlaceholderMember: (data) => db.addPlaceholderMember(team.id, data),
     changePassword,
     updateProfile,
+    setPhoto,
     createEvent: (data) => db.createEvent(team.id, data),
     respondToEvent: (eventId, status) => db.respondToEvent(team.id, eventId, profile.uid, status),
     reassignInvite: (eventId, toMember) =>
@@ -167,17 +211,41 @@ export function AppProvider({ children }) {
       const event = events.find((e) => e.id === eventId);
       const who = uid === profile.uid ? profile : team.members?.[uid];
       await db.openSlot(team.id, eventId, uid);
+      // Players on the sub list for that day hear first, with their own message.
+      const subs = event
+        ? Object.values(team.members || {}).filter((m) => m.uid !== uid && !event.participants?.[m.uid] && (m.subDates || []).includes(event.date))
+        : [];
+      if (event && subs.length) {
+        notify({
+          teamId: team.id,
+          uids: subs.map((m) => m.uid),
+          title: `🙋 You're on the sub list — spot open`,
+          body: `${shortWhen(event)} · ${event.title} — ${(who?.name || "A teammate").split(" ")[0]} can't make it. Tap to claim it.`,
+          url: `/#/event/${eventId}`,
+          tag: `slot-${eventId}`,
+        });
+        sendSlotOpenedEmail({
+          recipients: subs.filter((m) => m.email).map((m) => m.email),
+          openerName: who?.name || "A teammate",
+          title: event.title,
+          date: event.date,
+          startTime: event.startTime,
+          teamName: team.name,
+          appUrl: window.location.origin,
+          sub: true,
+        }).catch(() => {});
+      }
       if (event) {
         notify({
           teamId: team.id,
-          uids: teamUids([uid, profile.uid]),
+          uids: teamUids([uid, profile.uid, ...subs.map((m) => m.uid)]),
           title: `Open spot: ${event.title}`,
           body: `${shortWhen(event)} — ${(who?.name || "A teammate").split(" ")[0]} can't make it. First to claim gets it.`,
           url: `/#/event/${eventId}`,
           tag: `slot-${eventId}`,
         });
         sendSlotOpenedEmail({
-          recipients: teamEmails([uid]),
+          recipients: teamEmails([uid, ...subs.map((m) => m.uid)]),
           openerName: who?.name || "A teammate",
           title: event.title,
           date: event.date,
@@ -325,6 +393,12 @@ export function AppProvider({ children }) {
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+// Same as useApp, but returns null outside the provider instead of throwing
+// (Avatar uses it to find a teammate's photo).
+export function useAppOptional() {
+  return useContext(Ctx);
 }
 
 export function useApp() {

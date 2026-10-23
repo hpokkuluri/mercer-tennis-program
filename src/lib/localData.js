@@ -214,6 +214,16 @@ export async function getIdToken() {
   return null;
 }
 
+export async function setPaymentMark(teamId, path, value) {
+  const teams = readAll(TEAMS_KEY);
+  if (!teams[teamId]) return;
+  let o = (teams[teamId].payments ||= {});
+  for (const k of path.slice(0, -1)) o = o[k] ||= {};
+  if (value == null) delete o[path[path.length - 1]];
+  else o[path[path.length - 1]] = value;
+  writeAll(TEAMS_KEY, teams);
+}
+
 export async function setPayments(teamId, payments) {
   const teams = readAll(TEAMS_KEY);
   if (!teams[teamId]) return;

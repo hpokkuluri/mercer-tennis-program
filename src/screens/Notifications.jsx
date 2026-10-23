@@ -81,7 +81,7 @@ export default function Notifications() {
             <SectionLabel style={{ padding: "0 0 2px 2px" }}>Open slots you could claim ({claimable.length})</SectionLabel>
             {claimable.map(({ event, opener }) => (
               <Card key={event.id + opener.uid} onClick={() => navigate(`/event/${event.id}`)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-                <Avatar initials={opener.initials} color={opener.color} size={34} />
+                <Avatar uid={opener.uid} initials={opener.initials} color={opener.color} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{event.title}</div>
                   <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 1 }}>{opener.name.split(" ")[0]}'s spot is open — {event.date}</div>
@@ -97,7 +97,7 @@ export default function Notifications() {
             <SectionLabel style={{ padding: "0 0 2px 2px" }}>Team vacation conflicts ({teamConflicts.length})</SectionLabel>
             {teamConflicts.map(({ member, vacation, event }, i) => (
               <Card key={i} onClick={() => navigate(`/event/${event.id}`)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-                <Avatar initials={member.initials} color={member.color} size={34} />
+                <Avatar uid={member.uid} initials={member.initials} color={member.color} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 700 }}>{member.name}</div>
                   <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 1 }}>

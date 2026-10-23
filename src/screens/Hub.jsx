@@ -4,17 +4,22 @@ import Avatar from "../components/Avatar";
 import BottomNav from "../components/BottomNav";
 import { BellIcon, ChevronRightIcon } from "../components/Icons";
 import Logo from "../components/Logo";
-import { alertCount } from "../lib/notifications";
+import NextGameCard from "../components/NextGameCard";
+import InstallBanner from "../components/InstallBanner";
 
 export default function Hub() {
-  const { team, events, profile, isAdmin } = useApp();
+  const { team, events, profile, badge, eventsLoaded } = useApp();
   const navigate = useNavigate();
 
   const summerEvents = events.filter((e) => e.mode === "summer");
   const winterEvents = events.filter((e) => e.mode === "winter");
-  const badgeCount = alertCount(team, events, profile, isAdmin);
+  const badgeCount = badge;
 
-  const nextOf = (list) => list.find((e) => e.status !== "cancelled");
+  const today = new Date().toISOString().slice(0, 10);
+  const nextOf = (list) =>
+    list
+      .filter((e) => e.status !== "cancelled" && (!e.date || e.date >= today))
+      .sort((a, b) => (a.date + (a.startTime || "")).localeCompare(b.date + (b.startTime || "")))[0];
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
@@ -31,16 +36,29 @@ export default function Hub() {
             onClick={() => navigate("/notifications")}
             style={{ position: "relative", width: 40, height: 40, borderRadius: 999, background: "var(--card)", border: "var(--border-width, 1px) solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
           >
-            <BellIcon style={{ color: "oklch(35% 0.01 260)" }} />
+            <BellIcon style={{ color: "var(--text)" }} />
             {badgeCount > 0 && (
-              <div style={{ position: "absolute", top: 7, right: 8, width: 8, height: 8, borderRadius: 999, background: "var(--red-solid)", border: "1.5px solid white" }} />
+              <div data-testid="bell-count" style={{ position: "absolute", top: -3, right: -3, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: "var(--red-solid)", color: "white", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--bg)" }}>
+                {badgeCount > 99 ? "99+" : badgeCount}
+              </div>
             )}
           </button>
-          <Avatar initials={profile.initials} color={profile.color} size={40} />
+          <button onClick={() => navigate("/settings")} style={{ background: "none", border: "none", padding: 0 }} aria-label="Settings">
+            <Avatar uid={profile.uid} initials={profile.initials} color={profile.color} size={40} />
+          </button>
         </div>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <InstallBanner />
+        {!eventsLoaded ? <SkeletonCard tall /> : <NextGameCard />}
+        {!eventsLoaded ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : (
+        <>
         <ScheduleCard
           emoji="☀️"
           title="Summer Schedule"
@@ -57,11 +75,17 @@ export default function Hub() {
           next={nextOf(winterEvents)}
           onClick={() => navigate("/winter")}
         />
+        </>
+        )}
       </div>
 
       <BottomNav />
     </div>
   );
+}
+
+function SkeletonCard({ tall }) {
+  return <div className="skeleton" style={{ height: tall ? 170 : 128, borderRadius: "var(--radius-lg)" }} />;
 }
 
 function ScheduleCard({ emoji, title, subtitle, count, next, onClick }) {
