@@ -51,7 +51,11 @@ export function buildIcs({ events, uid, members = {}, teamName = "Mercer Tennis"
   ];
   for (const e of myCalendarEvents(events, uid)) {
     const start = e.startTime || "09:00";
-    const end = e.endTime && e.endTime > start ? e.endTime : `${String(Math.min(23, Number(start.slice(0, 2)) + 2)).padStart(2, "0")}${start.slice(2)}`;
+    const plus90 = (() => {
+      const t = Math.min(Number(start.slice(0, 2)) * 60 + Number(start.slice(3, 5)) + 90, 23 * 60 + 59);
+      return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+    })();
+    const end = e.endTime && e.endTime > start ? e.endTime : plus90;
     const me = e.participants[uid];
     const others = Object.values(e.participants || {})
       .filter((p) => p.uid !== uid && p.status !== "declined")

@@ -54,6 +54,7 @@ export const claimSlot = (...a) => backend.claimSlot(...a);
 export const closeSlot = (...a) => backend.closeSlot(...a);
 export const cancelEvent = (...a) => backend.cancelEvent(...a);
 export const replaceParticipant = (...a) => backend.replaceParticipant(...a);
+export const updateEventFields = (...a) => backend.updateEventFields(...a);
 export const deleteEvents = (...a) => backend.deleteEvents(...a);
 export const addParticipants = (...a) => backend.addParticipants(...a);
 export const joinEvent = (...a) => backend.joinEvent(...a);

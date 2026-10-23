@@ -84,9 +84,12 @@ export default function Schedule({ season }) {
           data-testid="fab-propose"
           onClick={() => navigate(`/propose/${season}`)}
           style={{
-            position: "absolute",
-            right: 20,
-            bottom: 96,
+            // Pinned to the screen (not the end of a long list), lined up with
+            // the app's 460px column on wide screens, just above the bottom bar.
+            position: "fixed",
+            right: "max(20px, calc((100vw - 460px) / 2 + 20px))",
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)",
+            zIndex: 30,
             width: 56,
             height: 56,
             borderRadius: 999,

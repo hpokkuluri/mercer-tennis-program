@@ -55,6 +55,7 @@ export default function SeasonPlanner() {
   const [startDate, setStartDate] = useState(saved.startDate || nextSaturday());
   const [weeks, setWeeks] = useState(saved.weeks || 24);
   const [perGame, setPerGame] = useState(saved.perGame || 4);
+  const [gameMinutes, setGameMinutes] = useState(saved.gameMinutes || 90);
   const [slotDefs, setSlotDefs] = useState(saved.slotDefs || DEFAULT_SLOTS);
   const [skip, setSkip] = useState(saved.skip || []);
   const [players, setPlayers] = useState(() =>
@@ -98,7 +99,7 @@ export default function SeasonPlanner() {
       variety: variety ? 1 : 0,
     });
     setResult({ ...res, labels, slotDefs, ratings: Object.fromEntries(chosen.map((m) => [m.uid, Number(getP(m.uid).rating)])), ids: chosen.map((m) => m.uid) });
-    setSchedulerSetup({ startDate, weeks: Number(weeks), perGame: Number(perGame), slotDefs, skip, variety, players: Object.fromEntries(members.map((m) => [m.uid, getP(m.uid)])) }).catch(() => {});
+    setSchedulerSetup({ startDate, weeks: Number(weeks), perGame: Number(perGame), gameMinutes: Number(gameMinutes) || 90, slotDefs, skip, variety, players: Object.fromEntries(members.map((m) => [m.uid, getP(m.uid)])) }).catch(() => {});
   }
 
   const existingInRange = result
@@ -121,7 +122,8 @@ export default function SeasonPlanner() {
         participants[uid] = { uid, name: m.name, initials: m.initials, color: m.color, status: markConfirmed ? "accepted" : "pending" };
       });
       const [h, mi] = g.def.time.split(":").map(Number);
-      const end = `${String(Math.min(23, h + 2)).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+      const endMin = Math.min(h * 60 + mi + (Number(gameMinutes) || 90), 23 * 60 + 59);
+      const end = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
       try {
         await createEvent({
           type: "practice",
@@ -202,6 +204,10 @@ export default function SeasonPlanner() {
             <div style={{ flex: 0.8 }}>
               <div style={small}>Per court</div>
               <input type="number" inputMode="numeric" value={perGame} onChange={(e) => setPerGame(e.target.value)} style={input} />
+            </div>
+            <div style={{ flex: 0.9 }}>
+              <div style={small}>Minutes</div>
+              <input data-testid="plan-minutes" type="number" inputMode="numeric" step="15" value={gameMinutes} onChange={(e) => setGameMinutes(e.target.value)} style={input} />
             </div>
           </div>
         </div>

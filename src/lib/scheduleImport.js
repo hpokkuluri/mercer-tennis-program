@@ -231,7 +231,8 @@ function isPlayerHeader(v) {
   const s = String(v).trim();
   return s.length >= 2 && NAME_RE.test(s) && !NON_PLAYER.test(s);
 }
-const GRID_GAME_MINUTES = 120;
+// Mercer's indoor slots are 9:00–10:30; the Import screen lets the admin change it.
+export const GRID_GAME_MINUTES = 90;
 
 function gridDate(v) {
   if (typeof v === "number" && v < 20000) return ""; // a plain number (time, count), not a date serial
@@ -252,7 +253,7 @@ export function gridTime(v) {
   return toHHMM(v);
 }
 
-function addMinutes(hhmm, mins) {
+export function addMinutes(hhmm, mins) {
   if (!hhmm) return "";
   const [h, m] = hhmm.split(":").map(Number);
   const t = Math.min(h * 60 + m + mins, 23 * 60 + 59);

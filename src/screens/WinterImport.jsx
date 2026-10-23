@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { Header, Card, SectionLabel, PrimaryButton, SecondaryButton, ErrorText, HomeButton } from "../components/UI";
 import { UploadIcon, WarningIcon, CheckIcon, XIcon } from "../components/Icons";
-import { parseWorkbook, parseGridFromAoa, fromDate, buildRowPreview, matchPlayers, squashName, templateCSV, fetchGoogleSheetCsv } from "../lib/scheduleImport";
+import { parseWorkbook, parseGridFromAoa, fromDate, buildRowPreview, matchPlayers, squashName, templateCSV, fetchGoogleSheetCsv, addMinutes, GRID_GAME_MINUTES } from "../lib/scheduleImport";
 import { genVacationId, formatRange } from "../lib/vacations";
 import { sendImportedEventEmail } from "../lib/email";
 import SeasonEmailButton from "../components/SeasonEmailButton";
@@ -111,7 +111,7 @@ function downloadTemplate() {
 }
 
 export default function WinterImport() {
-  const { team, events, profile, isAdmin, createEvent, updateMemberInTeam, mergeParticipants, deleteEvents } = useApp();
+  const { team, events, profile, isAdmin, createEvent, updateMemberInTeam, mergeParticipants, deleteEvents, updateEventFields } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -130,6 +130,7 @@ export default function WinterImport() {
   const [rawParsed, setRawParsed] = useState(null); // whole file, before the from-today filter
   const [fromToday, setFromToday] = useState(true);
   const [pastSkipped, setPastSkipped] = useState(0);
+  const [gameMinutes, setGameMinutes] = useState(team?.scheduler?.gameMinutes || GRID_GAME_MINUTES);
   const [nameMap, setNameMap] = useState({}); // sheet name -> member uid, picked by the admin
   const [shown, setShown] = useState(null); // the parsed file currently previewed (after the from-today filter)
 
@@ -171,11 +172,11 @@ export default function WinterImport() {
 
   // Re-run matching (rows + vacations) — after loading a file, and whenever
   // the admin matches a sheet name to a roster player.
-  function applyPreview(parsed, al, upcomingOnly) {
+  function applyPreview(parsed, al, upcomingOnly, mins = gameMinutes) {
     if (parsed.format === "grid") {
       setVacations(parsed.vacations.map((v) => ({ ...v, member: memberFor(v.name, al) })));
     }
-    loadRows(parsed.rows, upcomingOnly, al, parsed.format);
+    loadRows(parsed.rows, upcomingOnly, al, parsed.format, mins);
   }
 
   function setAlias(sheetName, uid) {
@@ -187,12 +188,17 @@ export default function WinterImport() {
     if (shown) applyPreview(shown, al, fromToday);
   }
 
-  function loadRows(rawRows, upcomingOnly = false, al = aliases, fmt = format) {
-    const preview = rawRows.map((r) => {
+  function loadRows(rawRows, upcomingOnly = false, al = aliases, fmt = format, mins = gameMinutes) {
+    const preview = rawRows.map((r0) => {
+      // Grid sheets only give a start time — the end comes from the game length.
+      const r = fmt === "grid" && r0.startTime ? { ...r0, endTime: addMinutes(r0.startTime, Number(mins) || GRID_GAME_MINUTES) } : r0;
       const p = buildRowPreview(r, members, events, al);
-      // Grid re-import: a game that's already there gets its missing players filled in
-      // (and its status refreshed) instead of being created twice.
-      if (fmt === "grid" && p.duplicate) return { ...p, action: "update", included: p.valid };
+      // Grid re-import: a game that's already there gets its missing players filled in,
+      // its time corrected and its status refreshed, instead of being created twice.
+      if (fmt === "grid" && p.duplicate) {
+        const fixTime = p.existing && (p.existing.startTime !== r.startTime || p.existing.endTime !== r.endTime);
+        return { ...p, action: "update", fixTime, included: p.valid };
+      }
       return { ...p, action: "create", included: p.valid && !p.duplicate };
     });
     setRows(preview);
@@ -283,6 +289,7 @@ export default function WinterImport() {
           const add = {};
           row.missing.forEach((m) => (add[m.uid] = participantFor(row, m)));
           await mergeParticipants(row.existing.id, add); // also refreshes the game's status
+          if (row.fixTime) await updateEventFields(row.existing.id, { startTime: row.startTime, endTime: row.endTime });
           updated += 1;
         } catch {
           // keep going
@@ -451,6 +458,23 @@ export default function WinterImport() {
                     </div>
                   );
                 })()}
+                <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5 }}>
+                  <span>Each game lasts</span>
+                  <select
+                    data-testid="game-minutes"
+                    value={gameMinutes}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setGameMinutes(v);
+                      if (shown) applyPreview(shown, aliases, fromToday, v);
+                    }}
+                    style={{ fontSize: 12.5, padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "var(--border-width, 1px) solid var(--border)", background: "var(--card)" }}
+                  >
+                    {[60, 75, 90, 105, 120].map((m) => (
+                      <option key={m} value={m}>{m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`}{m === 90 ? " (9:00–10:30)" : ""}</option>
+                    ))}
+                  </select>
+                </label>
                 <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
                   <input
                     data-testid="from-today"
@@ -537,11 +561,15 @@ export default function WinterImport() {
                         </div>
                       )}
                       {row.duplicate && row.action === "update" && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: row.missing.length ? "var(--amber-text)" : "var(--text-faint)" }}>
-                          {row.missing.length ? <WarningIcon width={12} height={12} /> : <CheckIcon width={12} height={12} />}
-                          {row.missing.length
-                            ? `Already imported — will add ${row.missing.map((m) => m.name.split(" ")[0]).join(", ")}`
-                            : "Already imported — players complete"}
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: row.missing.length || row.fixTime ? "var(--amber-text)" : "var(--text-faint)" }}>
+                          {row.missing.length || row.fixTime ? <WarningIcon width={12} height={12} /> : <CheckIcon width={12} height={12} />}
+                          {(() => {
+                            const todo = [
+                              row.missing.length ? `will add ${row.missing.map((m) => m.name.split(" ")[0]).join(", ")}` : "",
+                              row.fixTime ? `will fix time to ${row.startTime}–${row.endTime}` : "",
+                            ].filter(Boolean);
+                            return todo.length ? `Already imported — ${todo.join(" · ")}` : "Already imported — up to date";
+                          })()}
                         </div>
                       )}
                       {row.duplicate && row.action !== "update" && (

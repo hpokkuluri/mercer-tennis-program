@@ -447,6 +447,13 @@ export async function replaceParticipant(teamId, eventId, fromUid, toParticipant
   writeAll(EVENTS_KEY, all);
 }
 
+export async function updateEventFields(teamId, eventId, patch) {
+  const all = readAll(EVENTS_KEY);
+  if (!all[eventId]) return;
+  Object.assign(all[eventId], patch);
+  writeAll(EVENTS_KEY, all);
+}
+
 export async function cancelEvent(teamId, eventId) {
   const all = readAll(EVENTS_KEY);
   if (!all[eventId]) return;

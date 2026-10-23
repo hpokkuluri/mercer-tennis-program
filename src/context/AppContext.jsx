@@ -203,6 +203,7 @@ export function AppProvider({ children }) {
     updateMemberInTeam: (uid, patch) => db.updateMemberInTeam(team.id, uid, patch),
     // Used by Import to fill in players on games it created earlier (no emails; recomputes status).
     mergeParticipants: (eventId, participants) => db.addParticipants(team.id, eventId, participants),
+    updateEventFields: (eventId, patch) => db.updateEventFields(team.id, eventId, patch),
     addPlaceholderMember: (data) => db.addPlaceholderMember(team.id, data),
     changePassword,
     updateProfile,

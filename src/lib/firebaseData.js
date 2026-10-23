@@ -412,6 +412,10 @@ export async function replaceParticipant(teamId, eventId, fromUid, toParticipant
   await updateDoc(ref, ...args);
 }
 
+export async function updateEventFields(teamId, eventId, patch) {
+  await updateDoc(doc(db, "teams", teamId, "events", eventId), patch);
+}
+
 export async function cancelEvent(teamId, eventId) {
   await updateDoc(doc(db, "teams", teamId, "events", eventId), { status: "cancelled" });
 }
