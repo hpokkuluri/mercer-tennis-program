@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import Shell from "./components/Shell";
@@ -6,6 +6,7 @@ import Login from "./screens/Login";
 import OnboardTeam from "./screens/OnboardTeam";
 import Splash from "./components/Splash";
 import OfflineBanner from "./components/OfflineBanner";
+import LaunchAnimation, { shouldPlayLaunch } from "./components/LaunchAnimation";
 
 // Everything past the login/onboarding gate is code-split so the first
 // paint (and the local demo/Firebase auth check) only downloads what it
@@ -86,8 +87,11 @@ function Gate() {
 }
 
 export default function App() {
+  const [intro, setIntro] = useState(shouldPlayLaunch);
+  const done = useCallback(() => setIntro(false), []);
   return (
     <AppProvider>
+      {intro && <LaunchAnimation onDone={done} />}
       <HashRouter>
         <Shell>
           <OfflineBanner />
