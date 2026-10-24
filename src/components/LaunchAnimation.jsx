@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
-// Opening animation (3.5 s) on a fresh app launch: a player tosses the ball
+// Opening animation (4 s) on a fresh app launch: a player tosses the ball
 // and serves, the ball flies across the court, bounces, and lands where the
 // Mercer Tennis logo pops in. Tap anywhere to skip. Phones set to "Reduce
 // Motion" get a short fade of the logo instead. Plays once per launch
 // (sessionStorage), not when moving between screens.
 
 const KEY = "mtp.launchPlayed";
-const DURATION = 3500;
+const DURATION = 4000;
 
 export function shouldPlayLaunch() {
   try {
@@ -19,23 +19,23 @@ export function shouldPlayLaunch() {
 
 const css = `
 .mtp-launch { position: fixed; inset: 0; z-index: 1000; background: #93c100; overflow: hidden; cursor: pointer;
-  animation: mtp-out .4s ease-in 3.1s forwards; }
+  animation: mtp-out 0.46s ease-in 3.54s forwards; }
 .mtp-launch.skip { animation: mtp-out .25s ease-in forwards; }
 .mtp-launch svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.mtp-court { opacity: 0; animation: mtp-fade .5s ease-out .05s forwards; }
-.mtp-player { opacity: 0; transform-box: fill-box; animation: mtp-fade .3s ease-out .15s forwards, mtp-player-out .4s ease-in 2.3s forwards; }
-.mtp-toss { transform-origin: 104px 520px; animation: mtp-toss-arm 1.1s ease-in-out .3s both; }
-.mtp-swing { transform-origin: 122px 500px; animation: mtp-swing-arm 1.2s cubic-bezier(.45,0,.35,1) .35s both; }
+.mtp-court { opacity: 0; animation: mtp-fade 0.57s ease-out 0.06s forwards; }
+.mtp-player { opacity: 0; transform-box: fill-box; animation: mtp-fade 0.34s ease-out 0.17s forwards, mtp-player-out 0.46s ease-in 2.63s forwards; }
+.mtp-toss { transform-origin: 104px 520px; animation: mtp-toss-arm 1.26s ease-in-out 0.34s both; }
+.mtp-swing { transform-origin: 122px 500px; animation: mtp-swing-arm 1.37s cubic-bezier(.45,0,.35,1) 0.4s both; }
 .mtp-ball { offset-path: path("M 100 470 C 100 360, 118 360, 120 410 C 170 380, 235 400, 250 455 C 255 420, 225 360, 195 330"); offset-rotate: 0deg;
-  offset-distance: 0%; opacity: 0; animation: mtp-ball 1.85s cubic-bezier(.35,.1,.4,1) .4s forwards; }
-.mtp-shadow { opacity: 0; transform-box: fill-box; transform-origin: center; animation: mtp-shadow .5s ease-out 1.55s forwards; }
-.mtp-court { animation: mtp-fade .5s ease-out .05s forwards, mtp-dim .5s ease-in 2.1s forwards; }
+  offset-distance: 0%; opacity: 0; animation: mtp-ball 2.11s cubic-bezier(.35,.1,.4,1) 0.46s forwards; }
+.mtp-shadow { opacity: 0; transform-box: fill-box; transform-origin: center; animation: mtp-shadow 0.57s ease-out 1.77s forwards; }
+.mtp-court { animation: mtp-fade 0.57s ease-out 0.06s forwards, mtp-dim 0.57s ease-in 2.4s forwards; }
 @keyframes mtp-dim { from { opacity: 1; } to { opacity: .35; } }
-.mtp-logo { opacity: 0; transform: scale(.2); transform-origin: 195px 330px; animation: mtp-pop .6s cubic-bezier(.2,1.6,.4,1) 2.1s forwards; }
-.mtp-name { opacity: 0; transform: translateY(14px); animation: mtp-rise .5s ease-out 2.55s forwards; }
-.mtp-sub { opacity: 0; transform: translateY(10px); animation: mtp-rise .5s ease-out 2.75s forwards; }
+.mtp-logo { opacity: 0; transform: scale(.2); transform-origin: 195px 330px; animation: mtp-pop 0.69s cubic-bezier(.2,1.6,.4,1) 2.4s forwards; }
+.mtp-name { opacity: 0; transform: translateY(14px); animation: mtp-rise 0.57s ease-out 2.91s forwards; }
+.mtp-sub { opacity: 0; transform: translateY(10px); animation: mtp-rise 0.57s ease-out 3.14s forwards; }
 .mtp-skip { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 26px); text-align: center;
-  font: 600 12px system-ui, -apple-system, sans-serif; color: rgba(29,42,0,.55); opacity: 0; animation: mtp-fade .4s ease-out .8s forwards; }
+  font: 600 12px system-ui, -apple-system, sans-serif; color: rgba(29,42,0,.55); opacity: 0; animation: mtp-fade 0.46s ease-out 0.91s forwards; }
 @keyframes mtp-fade { to { opacity: 1; } }
 @keyframes mtp-out { to { opacity: 0; visibility: hidden; } }
 @keyframes mtp-player-out { to { opacity: 0; transform: translateX(-20px); } }
