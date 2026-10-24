@@ -277,10 +277,33 @@ function SheetLoader({ payments, members, onApply }) {
 export default function Payments() {
   const { team, events, profile, isAdmin, setPayments, claimPaid, setReceived } = useApp();
   const [copied, setCopied] = useState("");
-  const copy = (key, text) => {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied(key);
-    setTimeout(() => setCopied(""), 1500);
+  // iPhone home-screen apps sometimes refuse navigator.clipboard silently,
+  // so fall back to the old select-and-copy trick and only say "Copied"
+  // once something actually landed on the clipboard.
+  const copy = async (key, text) => {
+    const legacy = () => {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;font-size:16px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.setSelectionRange(0, text.length);
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      ta.remove();
+      return ok;
+    };
+    let ok = legacy();
+    if (!ok && navigator.clipboard?.writeText) {
+      ok = await navigator.clipboard.writeText(text).then(() => true, () => false);
+    }
+    setCopied(ok ? key : `fail:${key}`);
+    setTimeout(() => setCopied(""), ok ? 1500 : 4000);
   };
   const members = team?.members || {};
   const stored = team?.payments;
@@ -420,11 +443,11 @@ export default function Payments() {
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: -2 }}>
                       {l.phone && (
                         <button type="button" onClick={() => copy(`p${l.courtId}`, l.phone.replace(/[^\d+]/g, ""))} style={chip}>
-                          {copied === `p${l.courtId}` ? "Copied ✓" : "Copy Zelle #"}
+                          {copied === `p${l.courtId}` ? "Copied ✓" : copied === `fail:p${l.courtId}` ? `Copy blocked — ${l.phone.replace(/[^\d+]/g, "")}` : "Copy Zelle #"}
                         </button>
                       )}
                       <button type="button" onClick={() => copy(`a${l.courtId}`, l.owes.toFixed(2))} style={chip}>
-                        {copied === `a${l.courtId}` ? "Copied ✓" : `Copy ${money(l.owes)}`}
+                        {copied === `a${l.courtId}` ? "Copied ✓" : copied === `fail:a${l.courtId}` ? `Copy blocked — ${l.owes.toFixed(2)}` : `Copy ${money(l.owes)}`}
                       </button>
                       {l.claimed ? (
                         <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center" }}>
