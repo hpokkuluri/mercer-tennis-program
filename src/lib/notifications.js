@@ -4,12 +4,14 @@
 
 import { isOpenEvent } from "./groups";
 import { allTeamConflicts } from "./vacations";
+import { notOver } from "./gameTime";
 
 export function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-const upcoming = (e) => !e.date || e.date >= todayStr();
+// Still to come (or being played right now) — a game drops off once its end time passes.
+const upcoming = (e) => notOver(e);
 
 // This player's games from today through Sunday (Sat + Sun both show).
 export function myGamesThisWeek(events, uid) {
@@ -19,7 +21,7 @@ export function myGamesThisWeek(events, uid) {
   sunday.setDate(d.getDate() + ((7 - d.getDay()) % 7));
   const end = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, "0")}-${String(sunday.getDate()).padStart(2, "0")}`;
   return events
-    .filter((e) => e.status !== "cancelled" && e.date >= today && e.date <= end && ["accepted", "pending", "open"].includes(e.participants?.[uid]?.status))
+    .filter((e) => e.status !== "cancelled" && e.date >= today && e.date <= end && notOver(e) && ["accepted", "pending", "open"].includes(e.participants?.[uid]?.status))
     .sort((a, b) => (a.date + (a.startTime || "")).localeCompare(b.date + (b.startTime || "")));
 }
 

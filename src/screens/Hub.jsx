@@ -6,6 +6,7 @@ import { BellIcon, ChevronRightIcon } from "../components/Icons";
 import Logo from "../components/Logo";
 import NextGameCard from "../components/NextGameCard";
 import InstallBanner from "../components/InstallBanner";
+import { notOver } from "../lib/gameTime";
 
 export default function Hub() {
   const { team, events, profile, badge, eventsLoaded } = useApp();
@@ -15,10 +16,9 @@ export default function Hub() {
   const winterEvents = events.filter((e) => e.mode === "winter");
   const badgeCount = badge;
 
-  const today = new Date().toISOString().slice(0, 10);
   const nextOf = (list) =>
     list
-      .filter((e) => e.status !== "cancelled" && (!e.date || e.date >= today))
+      .filter((e) => e.status !== "cancelled" && notOver(e))
       .sort((a, b) => (a.date + (a.startTime || "")).localeCompare(b.date + (b.startTime || "")))[0];
 
   return (

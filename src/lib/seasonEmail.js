@@ -1,6 +1,7 @@
 import { sendSeasonScheduleEmail } from "./email";
 import { notify } from "./push";
 import { todayStr } from "./notifications";
+import { notOver } from "./gameTime";
 
 const day = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 const t12 = (t) => (t ? new Date(`2000-01-01T${t}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "");
@@ -8,7 +9,7 @@ const t12 = (t) => (t ? new Date(`2000-01-01T${t}`).toLocaleTimeString("en-US", 
 export function playerSeasonGames(events, uid) {
   const today = todayStr();
   return events
-    .filter((e) => e.mode === "winter" && e.status !== "cancelled" && e.date >= today && ["accepted", "pending", "open"].includes(e.participants?.[uid]?.status))
+    .filter((e) => e.mode === "winter" && e.status !== "cancelled" && e.date >= today && notOver(e) && ["accepted", "pending", "open"].includes(e.participants?.[uid]?.status))
     .sort((a, b) => (a.date + (a.startTime || "")).localeCompare(b.date + (b.startTime || "")));
 }
 

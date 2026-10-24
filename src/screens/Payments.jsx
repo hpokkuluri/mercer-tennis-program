@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { Header, Card, SectionLabel, PrimaryButton, SecondaryButton, HomeButton, Badge } from "../components/UI";
 import { CheckIcon, PlusIcon, TrashIcon, WarningIcon } from "../components/Icons";
 import { computeSplit, defaultPayments, money, round2, parsePaymentSheet, applyPaymentSheet } from "../lib/payments";
+import { venmoLinks, paypalLink, appleCashLink, openVenmo, isIOS } from "../lib/payLinks";
 
 const input = {
   width: "100%",
@@ -84,6 +85,8 @@ function Setup({ initial, members, slotTitles, onSave, onCancel }) {
         payerName: (c.payerName || "").trim(),
         payerUid: byName.get((c.payerName || "").trim().toLowerCase()) || "",
         phone: (c.phone || "").trim(),
+        venmo: (c.venmo || "").trim().replace(/^@/, ""),
+        paypal: (c.paypal || "").trim(),
       })),
     };
     await onSave(clean);
@@ -144,8 +147,18 @@ function Setup({ initial, members, slotTitles, onSave, onCancel }) {
             </div>
           </div>
           <div>
-            <Small>Zelle / phone</Small>
+            <Small>Zelle / phone (also used for Apple Cash)</Small>
             <input data-testid="pay-phone" inputMode="tel" value={c.phone} onChange={(e) => setCourt(i, { phone: e.target.value })} placeholder="732 555 0100" style={input} />
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Small>Venmo username (optional)</Small>
+              <input data-testid="pay-venmo" value={c.venmo || ""} onChange={(e) => setCourt(i, { venmo: e.target.value })} placeholder="@alladi-r" style={input} autoCapitalize="none" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Small>PayPal.Me name (optional)</Small>
+              <input data-testid="pay-paypal" value={c.paypal || ""} onChange={(e) => setCourt(i, { paypal: e.target.value })} placeholder="alladir" style={input} autoCapitalize="none" />
+            </div>
           </div>
         </div>
       ))}
@@ -377,6 +390,32 @@ export default function Payments() {
                     </div>
                     {l.received ? <Badge tone="green">{l.self ? "Covered" : "Received"}</Badge> : l.claimed ? <Badge tone="neutral">Sent</Badge> : <Badge tone="amber">Due</Badge>}
                   </div>
+                  {!l.received && !l.self && (() => {
+                    const note = `${team?.name || "Tennis"} — ${l.label} court share`;
+                    const v = venmoLinks({ username: l.venmo, amount: l.owes, note });
+                    const pp = paypalLink({ name: l.paypal, amount: l.owes });
+                    const ac = isIOS() ? appleCashLink({ phone: l.phone, amount: l.owes, note }) : null;
+                    if (!v && !pp && !ac) return null;
+                    return (
+                      <div data-testid={`pay-apps-${l.courtId}`} style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {v && (
+                          <button type="button" data-testid={`venmo-${l.courtId}`} onClick={() => openVenmo(v)} style={{ ...chip, background: "#008CFF", color: "white", border: "none" }}>
+                            Venmo {money(l.owes)}
+                          </button>
+                        )}
+                        {pp && (
+                          <a href={pp} target="_blank" rel="noreferrer" data-testid={`paypal-${l.courtId}`} style={{ ...chip, textDecoration: "none", background: "#003087", color: "white", border: "none" }}>
+                            PayPal {money(l.owes)}
+                          </a>
+                        )}
+                        {ac && (
+                          <a href={ac} data-testid={`applecash-${l.courtId}`} style={{ ...chip, textDecoration: "none", background: "#000", color: "white", border: "none" }}>
+                             Cash {money(l.owes)}
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {!l.received && !l.self && (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: -2 }}>
                       {l.phone && (

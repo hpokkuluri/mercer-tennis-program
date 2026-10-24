@@ -7,6 +7,7 @@ import { todayStr } from "../lib/notifications";
 import { allTeamConflicts } from "../lib/vacations";
 import { computeSplit, money } from "../lib/payments";
 import SeasonEmailButton from "../components/SeasonEmailButton";
+import { notOver } from "../lib/gameTime";
 
 const when = (e) => `${new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${e.startTime ? ` ${e.startTime}` : ""}`;
 
@@ -34,13 +35,13 @@ export default function AdminDashboard() {
     return d.toISOString().slice(0, 10);
   })();
   const members = team?.members || {};
-  const winter = useMemo(() => events.filter((e) => e.mode === "winter" && e.status !== "cancelled" && e.date >= today).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)), [events, today]);
+  const winter = useMemo(() => events.filter((e) => e.mode === "winter" && e.status !== "cancelled" && notOver(e)).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)), [events, today]);
   const week = winter.filter((e) => e.date <= in7);
   const notReady = week.filter((e) => Object.values(e.participants || {}).some((p) => p.status !== "accepted"));
   const openSpots = winter.flatMap((e) => Object.values(e.participants || {}).filter((p) => p.status === "open").map((p) => ({ e, p })));
   const pendingBy = {};
   winter.forEach((e) => Object.values(e.participants || {}).forEach((p) => p.status === "pending" && (pendingBy[p.uid] = (pendingBy[p.uid] || 0) + 1)));
-  const conflicts = allTeamConflicts(team, events).filter((c) => c.event.date >= today);
+  const conflicts = allTeamConflicts(team, events).filter((c) => notOver(c.event));
   const pay = team?.payments && team.payments.courts?.some((c) => Number(c.amount) > 0) ? computeSplit(team.payments, events, members) : null;
   const owing = pay ? pay.players.filter((p) => p.due > 0).sort((a, b) => b.due - a.due) : [];
   const claims = pay ? pay.courts.flatMap((c) => c.rows.filter((r) => r.claimed).map((r) => ({ c, r }))) : [];

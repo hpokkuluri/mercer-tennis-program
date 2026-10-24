@@ -11,14 +11,11 @@
 //
 // A cancelled event never counts against or for anyone.
 
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { notOver } from "./gameTime";
 
+// A game moves from "upcoming" to played / not played the moment it ends.
 export function bucketFor(event, participant) {
-  const today = todayStr();
-  if (event.date >= today) return "pending";
+  if (notOver(event)) return "pending";
   if (participant.status === "accepted") return "played";
   return "notPlayed"; // declined, never responded, or open/unclaimed
 }

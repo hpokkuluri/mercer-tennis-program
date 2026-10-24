@@ -3,8 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import Avatar from "./Avatar";
 import { myNextGame, myGamesThisWeek, todayStr } from "../lib/notifications";
+import { isLive, gameEnd } from "../lib/gameTime";
 
 function when(e, now) {
+  if (isLive(e, now)) {
+    return { big: "Playing now 🎾", small: `until ${gameEnd(e).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`, live: true };
+  }
   const today = todayStr();
   const days = Math.round((new Date(e.date + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000);
   const time = e.startTime ? new Date(`2000-01-01T${e.startTime}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
@@ -41,19 +45,21 @@ const cardStyle = {
 // left this week, their next game.
 export default function NextGameCard() {
   const { events, profile } = useApp();
-  const week = myGamesThisWeek(events, profile.uid);
-  if (week.length > 0) return <WeekCard games={week} />;
-  return <SingleNext />;
-}
-
-function WeekCard({ games }) {
-  const { profile, team } = useApp();
-  const navigate = useNavigate();
+  // Re-check every minute so "Playing now" appears at start time and a
+  // finished game drops off the card at its end time.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
+  const week = myGamesThisWeek(events, profile.uid);
+  if (week.length > 0) return <WeekCard games={week} now={now} />;
+  return <SingleNext now={now} />;
+}
+
+function WeekCard({ games, now }) {
+  const { profile, team } = useApp();
+  const navigate = useNavigate();
   return (
     <div data-testid="next-game" style={cardStyle}>
       <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -102,14 +108,9 @@ function WeekCard({ games }) {
   );
 }
 
-function SingleNext() {
+function SingleNext({ now }) {
   const { events, profile, team, respondToEvent } = useApp();
   const navigate = useNavigate();
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(t);
-  }, []);
   const e = myNextGame(events, profile.uid);
   if (!e) return null;
   const me = e.participants[profile.uid];

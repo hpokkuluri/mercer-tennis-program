@@ -87,7 +87,7 @@ export function computeSplit(payments, events, members) {
       const lines = courts
         .map((c) => {
           const r = c.rows.find((x) => x.uid === m.uid);
-          return r ? { courtId: c.id, court: c, label: c.label, payerName: c.payerName, phone: c.phone, games: r.games, owes: r.owes, self: r.self, received: r.received, claimed: r.claimed } : null;
+          return r ? { courtId: c.id, court: c, label: c.label, payerName: c.payerName, phone: c.phone, venmo: c.venmo, paypal: c.paypal, games: r.games, owes: r.owes, self: r.self, received: r.received, claimed: r.claimed } : null;
         })
         .filter(Boolean);
       const games = lines.reduce((n, l) => n + l.games, 0);

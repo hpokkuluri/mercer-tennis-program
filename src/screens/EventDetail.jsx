@@ -15,12 +15,6 @@ const statusMap = {
   attention: { tone: "red", label: "Needs a player" },
 };
 
-function todayStr() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-}
-
 export default function EventDetail() {
   const { id } = useParams();
   const location = useLocation();
@@ -65,7 +59,8 @@ export default function EventDetail() {
   const canRespond = !open && me && me.status === "pending";
   const canStillReassign = !open && me && me.status !== "accepted";
   const availableToReassign = members.filter((m) => !event.participants?.[m.uid]);
-  const isUpcoming = !open && event.date >= todayStr();
+  // Spot trading closes once the game has started.
+  const isUpcoming = !open && !hasStarted(event);
   // Pending players already have Decline/Reassign; this is for someone
   // who already accepted and only later found out they can't make it
   // (a new conflict, a vacation, etc.) — no other way to back out.

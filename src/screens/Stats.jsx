@@ -4,14 +4,15 @@ import Avatar from "../components/Avatar";
 import { Header, Card, SectionLabel, HomeButton } from "../components/UI";
 import { todayStr } from "../lib/notifications";
 import { playerOutcome } from "../lib/scorecard";
+import { isOver } from "../lib/gameTime";
 
 // Season numbers per player, from the Winter schedule: games played,
 // coming up, wins/losses where a result was logged, and who they share a
 // court with most.
-function statsFor(events, uid, today) {
+function statsFor(events, uid) {
   const mine = events.filter((e) => e.mode === "winter" && e.status !== "cancelled" && e.participants?.[uid] && e.participants[uid].status !== "declined");
-  const played = mine.filter((e) => e.date < today && e.participants[uid].status === "accepted");
-  const upcoming = mine.filter((e) => e.date >= today);
+  const played = mine.filter((e) => isOver(e) && e.participants[uid].status === "accepted");
+  const upcoming = mine.filter((e) => !isOver(e));
   // Doubles score card first; older games may have a Win/Loss result instead.
   const outcome = (e) => playerOutcome(e, uid) || e.result?.outcome || null;
   const wins = mine.filter((e) => outcome(e) === "win").length;
