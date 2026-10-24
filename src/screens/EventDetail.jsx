@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import ScoreBoard from "../components/ScoreBoard";
+import { pairings, playersOf, teamsOf, cleanSets, hasStarted } from "../lib/scorecard";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import { Header, Card, Badge, SectionLabel, PrimaryButton, SecondaryButton } from "../components/UI";
@@ -21,11 +23,12 @@ function todayStr() {
 
 export default function EventDetail() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const {
     events, team, profile, isAdmin, respondToEvent, reassignInvite, cancelEvent, subscribeComments, postComment,
     joinEvent, withdrawFromEvent, setWinterResult, addSummerResult, deleteSummerResult, addParticipants,
-    openSlot, closeSlot, claimSlot, swapPlayer,
+    openSlot, closeSlot, claimSlot, swapPlayer, updateEventFields,
   } = useApp();
   const event = events.find((e) => e.id === id);
   const [comments, setComments] = useState([]);
@@ -248,12 +251,21 @@ export default function EventDetail() {
             onDelete={(resultId) => deleteSummerResult(event.id, resultId)}
           />
         ) : (
-          <WinterResult
-            event={event}
-            profile={profile}
-            isAdmin={isAdmin}
-            onSave={(data) => setWinterResult(event.id, data)}
-          />
+          <>
+            {playersOf(event).length >= 2 && (
+              <ScoreCardSection
+                event={event}
+                members={team?.members || {}}
+                canEdit={event.status !== "cancelled" && (isAdmin || Boolean(event.participants?.[profile.uid]))}
+                startOpen={Boolean(location.state?.score)}
+                onSave={(scorecard) => updateEventFields(event.id, { scorecard })}
+                profile={profile}
+              />
+            )}
+            {event.result && (
+              <WinterResult event={event} profile={profile} isAdmin={isAdmin} onSave={(data) => setWinterResult(event.id, data)} />
+            )}
+          </>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -450,6 +462,110 @@ function AddPlayers({ candidates, onAdd }) {
           {busy ? "Adding…" : `Add ${selected.length || ""} Player${selected.length === 1 ? "" : "s"}`}
         </PrimaryButton>
       </div>
+    </div>
+  );
+}
+
+// Doubles score card: pick the pairs, enter up to three sets.
+function ScoreCardSection({ event, members, canEdit, startOpen, onSave, profile }) {
+  const uids = playersOf(event);
+  const [A0, B0] = teamsOf(event);
+  const options = pairings(uids);
+  const startIdx = Math.max(0, options.findIndex(([a]) => a.length === A0.length && a.every((u) => A0.includes(u))));
+  const [open, setOpen] = useState(startOpen && canEdit);
+  const [pairIdx, setPairIdx] = useState(startIdx);
+  const existing = cleanSets(event.scorecard?.sets);
+  const [sets, setSets] = useState(() => {
+    const base = existing.map(([x, y]) => [String(x), String(y)]);
+    while (base.length < 3) base.push(["", ""]);
+    return base;
+  });
+  const [busy, setBusy] = useState(false);
+  const first = (uid) => (members[uid]?.name || event.participants?.[uid]?.name || "?").split(" ")[0];
+  const started = hasStarted(event);
+
+  async function save(clear = false) {
+    setBusy(true);
+    try {
+      const [teamA, teamB] = options[pairIdx] || [A0, B0];
+      const clean = clear ? [] : cleanSets(sets);
+      await onSave({ teamA, teamB, sets: clean, recordedBy: profile.uid, recordedByName: profile.name, recordedAt: Date.now() });
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const cell = { width: 54, textAlign: "center", border: "var(--border-width, 1px) solid var(--border)", borderRadius: "var(--radius-sm)", padding: "9px 4px", fontSize: 16, fontWeight: 700, background: "var(--card)", color: "var(--text)" };
+
+  if (!open) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <SectionLabel>Score card</SectionLabel>
+          {canEdit && (
+            <button type="button" data-testid="score-edit" onClick={() => setOpen(true)} className="display" style={{ background: "none", border: "none", color: "var(--text-muted)", fontWeight: 700, fontSize: 12.5 }}>
+              {existing.length ? "Edit score" : started ? "Add score" : "Set pairs"}
+            </button>
+          )}
+        </div>
+        <Card style={{ padding: "14px" }}>
+          <ScoreBoard event={event} members={members} size="lg" />
+          {event.scorecard?.recordedByName && existing.length > 0 && (
+            <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 10 }}>Score entered by {event.scorecard.recordedByName}</div>
+          )}
+          {!existing.length && <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 10 }}>{started ? "No score yet — any of the four players can add it." : "Pairs for this game. Score can be added once it starts."}</div>}
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="score-form" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <SectionLabel>{existing.length ? "Edit score" : "Add score"}</SectionLabel>
+      {options.length > 1 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>Who played together?</div>
+          {options.map(([a, b], i) => (
+            <button
+              key={i}
+              type="button"
+              data-testid={`pairing-${i}`}
+              onClick={() => setPairIdx(i)}
+              style={{ textAlign: "left", padding: "10px 12px", borderRadius: "var(--radius-md)", fontSize: 13.5, fontWeight: 600, border: pairIdx === i ? "2px solid var(--accent)" : "var(--border-width, 1px) solid var(--border)", background: pairIdx === i ? "var(--accent-soft-bg)" : "var(--card)", color: "var(--text)" }}
+            >
+              {a.map(first).join(" & ")} <span style={{ color: "var(--text-faint)", fontWeight: 700, margin: "0 6px" }}>vs</span> {b.map(first).join(" & ")}
+            </button>
+          ))}
+        </div>
+      )}
+      {started && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" }}>
+            <span style={{ width: 44 }} />
+            <span style={{ width: 54, textAlign: "center" }}>{(options[pairIdx] || [A0])[0].map(first).join(" & ").slice(0, 12)}</span>
+            <span style={{ width: 54, textAlign: "center" }}>{(options[pairIdx] || [A0, B0])[1].map(first).join(" & ").slice(0, 12)}</span>
+          </div>
+          {sets.map(([x, y], i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ width: 44, fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)" }}>Set {i + 1}</span>
+              <input data-testid={`set-${i}-a`} inputMode="numeric" value={x} onChange={(e) => setSets((ss) => ss.map((s2, j) => (j === i ? [e.target.value.replace(/\D/g, "").slice(0, 2), s2[1]] : s2)))} style={cell} />
+              <input data-testid={`set-${i}-b`} inputMode="numeric" value={y} onChange={(e) => setSets((ss) => ss.map((s2, j) => (j === i ? [s2[0], e.target.value.replace(/\D/g, "").slice(0, 2)] : s2)))} style={cell} />
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <SecondaryButton onClick={() => setOpen(false)} style={{ flex: 1 }}>Cancel</SecondaryButton>
+        <PrimaryButton data-testid="score-save" onClick={() => save(false)} disabled={busy} style={{ flex: 2 }}>
+          {busy ? "Saving…" : started ? "Save score" : "Save pairs"}
+        </PrimaryButton>
+      </div>
+      {existing.length > 0 && (
+        <button type="button" onClick={() => save(true)} style={{ background: "none", border: "none", color: "var(--red-text)", fontWeight: 700, fontSize: 12.5 }}>
+          Clear score
+        </button>
+      )}
     </div>
   );
 }

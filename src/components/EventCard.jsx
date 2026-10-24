@@ -1,4 +1,7 @@
 import { useNavigate } from "react-router-dom";
+import { useAppOptional } from "../context/AppContext";
+import ScoreBoard from "./ScoreBoard";
+import { hasStarted, cleanSets, playersOf } from "../lib/scorecard";
 import Avatar from "./Avatar";
 import { Badge } from "./UI";
 import { RacketIcon, TrophyIcon, ClockIcon, PinIcon } from "./Icons";
@@ -22,6 +25,13 @@ const statusMap = {
 
 export default function EventCard({ event }) {
   const navigate = useNavigate();
+  const app = useAppOptional();
+  const members = app?.team?.members || {};
+  const me = app?.profile?.uid;
+  const showScore = !isOpenEvent(event) && playersOf(event).length >= 2;
+  const scored = cleanSets(event.scorecard?.sets).length > 0;
+  const canScore = showScore && !scored && event.status !== "cancelled" && hasStarted(event) && (app?.isAdmin || Boolean(event.participants?.[me]));
+  const t12 = (t) => (t ? new Date(`2000-01-01T${t}`).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "");
   const open = isOpenEvent(event);
   const participants = Object.values(event.participants || {});
   const accepted = participants.filter((p) => p.status === "accepted").length;
@@ -55,18 +65,38 @@ export default function EventCard({ event }) {
 
       <div>
         <div className="display" style={{ fontSize: 17, fontWeight: 700 }}>{event.title}</div>
-        <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 2 }}>{formatDateLabel(event.date)}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-muted)", marginTop: 3, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600 }}>{formatDateLabel(event.date)}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            · <ClockIcon width={13} height={13} /> {t12(event.startTime)}{event.endTime ? `–${t12(event.endTime)}` : ""}
+          </span>
+          {event.location && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              · <PinIcon width={13} height={13} /> {event.location}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--text-muted)" }}>
-          <ClockIcon /> {event.startTime} &ndash; {event.endTime}
+      {showScore ? (
+        <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-soft)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <ScoreBoard event={event} members={members} />
+          {canScore && (
+            <button
+              type="button"
+              data-testid="add-score"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                navigate(`/event/${event.id}`, { state: { score: true } });
+              }}
+              className="display"
+              style={{ alignSelf: "flex-start", border: "none", borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, background: "var(--accent)", color: "var(--accent-text)" }}
+            >
+              + Add score
+            </button>
+          )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--text-muted)" }}>
-          <PinIcon /> {event.location}
-        </div>
-      </div>
-
+      ) : (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
         <div style={{ display: "flex" }}>
           {participants.slice(0, 4).map((p, i) => (
@@ -77,6 +107,7 @@ export default function EventCard({ event }) {
           {open ? summaryLine(event) : `${accepted} of ${total} accepted`}
         </div>
       </div>
+      )}
     </div>
   );
 }
