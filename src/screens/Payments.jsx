@@ -147,7 +147,7 @@ function Setup({ initial, members, slotTitles, onSave, onCancel }) {
             </div>
           </div>
           <div>
-            <Small>Zelle / phone (also used for Apple Cash)</Small>
+            <Small>Zelle / phone (also used for Apple Pay)</Small>
             <input data-testid="pay-phone" inputMode="tel" value={c.phone} onChange={(e) => setCourt(i, { phone: e.target.value })} placeholder="732 555 0100" style={input} />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -410,7 +410,7 @@ export default function Payments() {
                         )}
                         {ac && (
                           <a href={ac} data-testid={`applecash-${l.courtId}`} style={{ ...chip, textDecoration: "none", background: "#000", color: "white", border: "none" }}>
-                             Cash {money(l.owes)}
+                            Apple Pay {money(l.owes)}
                           </a>
                         )}
                       </div>

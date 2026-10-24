@@ -27,7 +27,7 @@ export function appleCashLink({ phone, amount, note }) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.length < 10) return null;
   const to = digits.length === 10 ? `+1${digits}` : `+${digits}`;
-  const body = encodeURIComponent(`Apple Cash $${amount.toFixed(2)} — ${note}`);
+  const body = encodeURIComponent(`Apple Pay $${amount.toFixed(2)} — ${note}`);
   return `sms:${to}${isIOS() ? "&" : "?"}body=${body}`;
 }
 
