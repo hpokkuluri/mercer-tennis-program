@@ -447,7 +447,16 @@ export async function replaceParticipant(teamId, eventId, fromUid, toParticipant
   writeAll(EVENTS_KEY, all);
 }
 
+// Mirror Firestore: nested arrays are rejected.
+function assertNoNestedArrays(v, inArray = false) {
+  if (Array.isArray(v)) {
+    if (inArray) throw new Error("Function updateDoc() called with invalid data. Nested arrays are not supported.");
+    v.forEach((x) => assertNoNestedArrays(x, true));
+  } else if (v && typeof v === "object") Object.values(v).forEach((x) => assertNoNestedArrays(x, false));
+}
+
 export async function updateEventFields(teamId, eventId, patch) {
+  assertNoNestedArrays(patch);
   const all = readAll(EVENTS_KEY);
   if (!all[eventId]) return;
   Object.assign(all[eventId], patch);

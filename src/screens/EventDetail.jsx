@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import ScoreBoard from "../components/ScoreBoard";
-import { pairings, playersOf, teamsOf, cleanSets, hasStarted } from "../lib/scorecard";
+import { pairings, playersOf, teamsOf, cleanSets, setsForSave, hasStarted } from "../lib/scorecard";
 import { useApp } from "../context/AppContext";
 import Avatar from "../components/Avatar";
 import { Header, Card, Badge, SectionLabel, PrimaryButton, SecondaryButton } from "../components/UI";
@@ -479,13 +479,17 @@ function ScoreCardSection({ event, members, canEdit, startOpen, onSave, profile 
   const first = (uid) => (members[uid]?.name || event.participants?.[uid]?.name || "?").split(" ")[0];
   const started = hasStarted(event);
 
+  const [error, setError] = useState("");
   async function save(clear = false) {
     setBusy(true);
+    setError("");
     try {
       const [teamA, teamB] = options[pairIdx] || [A0, B0];
-      const clean = clear ? [] : cleanSets(sets);
-      await onSave({ teamA, teamB, sets: clean, recordedBy: profile.uid, recordedByName: profile.name, recordedAt: Date.now() });
+      const clean = clear ? [] : setsForSave(sets);
+      await onSave({ teamA, teamB, sets: clean, recordedBy: profile?.uid || "", recordedByName: profile?.name || "", recordedAt: Date.now() });
       setOpen(false);
+    } catch (e) {
+      setError(`Couldn't save — ${e?.message || "please try again"}`);
     } finally {
       setBusy(false);
     }
@@ -556,6 +560,7 @@ function ScoreCardSection({ event, members, canEdit, startOpen, onSave, profile 
           {busy ? "Saving…" : started ? "Save score" : "Save pairs"}
         </PrimaryButton>
       </div>
+      {error && <div data-testid="score-error" style={{ fontSize: 12.5, color: "var(--red-text)", fontWeight: 600 }}>{error}</div>}
       {existing.length > 0 && (
         <button type="button" onClick={() => save(true)} style={{ background: "none", border: "none", color: "var(--red-text)", fontWeight: 700, fontSize: 12.5 }}>
           Clear score

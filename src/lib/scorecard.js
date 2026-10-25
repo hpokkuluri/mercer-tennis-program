@@ -1,5 +1,7 @@
 // Doubles score card for a game: two pairs and set scores.
-//   event.scorecard = { teamA: [uid, uid], teamB: [uid, uid], sets: [[6, 4], [3, 6], [7, 5]],
+//   event.scorecard = { teamA: [uid, uid], teamB: [uid, uid], sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }],
+// (Firestore rejects nested arrays, so sets are stored as {a, b} objects;
+// [x, y] pairs are still read for older local data.)
 //                       recordedBy, recordedByName, recordedAt }
 // Before anyone enters a score the pairs are a default split of the game's
 // players (first two vs last two), which the score entry lets you change.
@@ -30,7 +32,8 @@ export function teamsOf(event) {
   return pairings(now)[0];
 }
 
-export const cleanSets = (sets) => (sets || []).map(([x, y]) => [Number(x), Number(y)]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && (x > 0 || y > 0));
+const pairOf = (s) => (Array.isArray(s) ? s : [s?.a, s?.b]);
+export const cleanSets = (sets) => (Array.isArray(sets) ? sets : []).map((s) => pairOf(s)).map(([x, y]) => [x === "" || x == null ? NaN : Number(x), y === "" || y == null ? NaN : Number(y)]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && (x > 0 || y > 0));
 
 export function setsWon(sets) {
   let a = 0;
@@ -64,3 +67,6 @@ export function hasStarted(event, now = new Date()) {
   if (!event.date) return false;
   return new Date(`${event.date}T${event.startTime || "00:00"}`) <= now;
 }
+
+// Shape for saving: [{a, b}, …]
+export const setsForSave = (sets) => cleanSets(sets).map(([a, b]) => ({ a, b }));
