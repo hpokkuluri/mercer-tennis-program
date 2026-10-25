@@ -55,11 +55,26 @@ function makeDb() {
 export const db = makeDb();
 export const auth = getAuth(app);
 
+// iPhone home-screen apps often have a flaky first network request right
+// after launch (auth/network-request-failed). Retry a couple of times before
+// giving up, and give a plain-English message if it still fails.
+async function withNetRetry(fn) {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e?.code !== "auth/network-request-failed") throw e;
+      if (i >= 2) throw new Error("Couldn't reach the sign-in server. Check your Wi-Fi or mobile data (and turn off any VPN / iCloud Private Relay), then try again.");
+      await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+    }
+  }
+}
+
 // ---------- auth ----------
 
 export async function signUp({ email, password, name }) {
   const normalized = email.trim().toLowerCase();
-  const cred = await createUserWithEmailAndPassword(auth, normalized, password);
+  const cred = await withNetRetry(() => createUserWithEmailAndPassword(auth, normalized, password));
   await updateProfile(cred.user, { displayName: name });
   const profile = {
     uid: cred.user.uid,
@@ -91,7 +106,7 @@ export async function signUp({ email, password, name }) {
 }
 
 export async function signIn({ email, password }) {
-  const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+  const cred = await withNetRetry(() => signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password));
   const snap = await getDoc(doc(db, "users", cred.user.uid));
   return snap.exists() ? snap.data() : { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName };
 }
@@ -106,7 +121,7 @@ export async function signOutUser() {
 }
 
 export async function resetPassword({ email }) {
-  await sendPasswordResetEmail(auth, email.trim().toLowerCase());
+  await withNetRetry(() => sendPasswordResetEmail(auth, email.trim().toLowerCase()));
 }
 
 export async function changePassword({ currentPassword, newPassword }) {
