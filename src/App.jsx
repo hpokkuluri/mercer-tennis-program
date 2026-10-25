@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useState } from "react";
+import CrashGuard from "./components/CrashGuard";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import Shell from "./components/Shell";
@@ -90,14 +91,16 @@ export default function App() {
   const [intro, setIntro] = useState(shouldPlayLaunch);
   const done = useCallback(() => setIntro(false), []);
   return (
-    <AppProvider>
-      {intro && <LaunchAnimation onDone={done} />}
-      <HashRouter>
-        <Shell>
-          <OfflineBanner />
-          <Gate />
-        </Shell>
-      </HashRouter>
-    </AppProvider>
+    <CrashGuard>
+      <AppProvider>
+        {intro && <LaunchAnimation onDone={done} />}
+        <HashRouter>
+          <Shell>
+            <OfflineBanner />
+            <Gate />
+          </Shell>
+        </HashRouter>
+      </AppProvider>
+    </CrashGuard>
   );
 }
